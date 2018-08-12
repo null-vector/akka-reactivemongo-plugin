@@ -20,7 +20,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   import system.dispatcher
 
-  private lazy val database: DefaultDB = {
+  private val database: DefaultDB = {
     val parsedURI = MongoConnection.parseURI("mongodb://localhost/test") match {
       case Success(_parsedURI) => _parsedURI
       case Failure(exception) => throw exception
@@ -29,10 +29,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     Await.result(MongoDriver(system.settings.config).connection(parsedURI).database(databaseName), 15.seconds)
   }
 
-  def collectionFor(persistentId: String): Future[BSONCollection] = Future.successful(
-    database.collection[BSONCollection](collectionNameFrom(persistentId))
+  def collectionFor(persistentId: String): Future[BSONCollection] =
+    //TODO: Locate and verify the state of the collection (indices). This info. would be in an Actor...
+    Future.successful(database.collection[BSONCollection](collectionNameFrom(persistentId))
   )
 
-  private def collectionNameFrom(persistenceId: String): String = persistenceId.split("-")(0)
+  private def collectionNameFrom(persistenceId: String): String = "journal"
 
 }

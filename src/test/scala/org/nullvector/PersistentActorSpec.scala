@@ -18,7 +18,13 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     "xxx" in {
       val actorRef = system.actorOf(Props(new SomePersistentActor("3456")))
       actorRef ! "Some String command"
-      expectMsg("ok")
+      actorRef ! "Some String command"
+      actorRef ! "Some String command"
+      actorRef ! "Some String command"
+      actorRef ! "Some String command"
+      actorRef ! "Some String command"
+      actorRef ! "Some String command"
+      receiveN(7)
     }
   }
 

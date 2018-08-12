@@ -1,0 +1,15 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%level %date{ISO8601} %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="reactivemongo" level="WARN"/>
+
+    <!-- Setting the root level of SYSLOG to INFO -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+
+</configuration>

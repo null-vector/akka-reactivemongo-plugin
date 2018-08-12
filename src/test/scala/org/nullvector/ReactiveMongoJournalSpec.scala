@@ -20,7 +20,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
   }
 
   "ReactiveMongoJournalImpl" should {
-    "asyncWriteMessages" in {
+    "asyncWriteMessages & asyncReadHighestSequenceNr" in {
 
       val pId = s"SomeCollection-${Random.nextLong().abs}"
 
@@ -31,8 +31,11 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       )
 
       val eventualTriedUnits = reactiveMongoJournalImpl.asyncWriteMessages(events)
-      val triedUnits = Await.result(eventualTriedUnits, 15.seconds)
-      triedUnits.foreach(println)
+      Await.result(eventualTriedUnits, 1.second)
+
+      val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22l)
+
+      Await.result(eventualLong, 1.second) should be(25l)
     }
   }
 
