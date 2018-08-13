@@ -1,4 +1,4 @@
-package org.nullvector
+package org.nullvector.journal
 
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import reactivemongo.bson.BSONDocument
@@ -16,8 +16,9 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
 
 
-  def serialize(manifest: String, payload: Any): Future[BSONDocument] =
-    Future.successful(BSONDocument("p" -> payload.toString))
+  def serialize(payload: Any): Future[(String, BSONDocument)] =
+    Future.successful("manifest" ->BSONDocument("p" -> payload.toString))
 
-
+  def deserialize(manifest: String, event: BSONDocument): Future[Any] =
+    Future.successful(event.getAs[String]("p").get)
 }

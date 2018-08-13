@@ -1,9 +1,10 @@
-package org.nullvector
+package org.nullvector.journal
 
 import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.nullvector.journal.journal.ReactiveMongoJournalImpl
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.collection.immutable
