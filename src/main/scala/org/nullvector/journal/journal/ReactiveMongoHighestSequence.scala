@@ -1,5 +1,6 @@
 package org.nullvector.journal.journal
 
+import org.nullvector.journal.Fields
 import reactivemongo.bson.{BSONDocument, BSONString}
 
 import scala.concurrent.Future
@@ -10,7 +11,6 @@ trait ReactiveMongoHighestSequence {
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] =
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
       import collection.BatchCommands.AggregationFramework._
-
       val $match = Match(BSONDocument(
         Fields.persistenceId -> persistenceId,
         Fields.sequence -> BSONDocument("$gte" -> fromSequenceNr)

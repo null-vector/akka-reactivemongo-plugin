@@ -3,6 +3,7 @@ package org.nullvector.journal.journal
 import java.util.Date
 
 import akka.persistence.AtomicWrite
+import org.nullvector.journal.Fields
 import reactivemongo.bson.BSONDocument
 
 import scala.concurrent.Future
@@ -18,10 +19,10 @@ trait ReactiveMongoAsyncWrite {
           BSONDocument(
             Fields.persistenceId -> persistentRepr.persistenceId,
             Fields.sequence -> persistentRepr.sequenceNr,
-            Fields.event -> serialized._2,
-            Fields.manifest -> serialized._1,
+            Fields.event -> serialized.doc,
+            Fields.manifest -> serialized.manifest,
             Fields.datetime -> new Date()
-          )
+          ) ++ (if (serialized.tags.nonEmpty) BSONDocument(Fields.tags -> serialized.tags) else BSONDocument.empty)
         ).flatMap(doc => collection.insert(doc)).map(result =>
           if (result.ok) Success({}) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n")))
         )

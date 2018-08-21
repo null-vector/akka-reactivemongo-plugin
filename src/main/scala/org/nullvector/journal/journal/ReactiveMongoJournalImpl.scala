@@ -9,14 +9,6 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait ReactiveMongoJournalImpl extends ReactiveMongoAsyncWrite with ReactiveMongoAsyncReplay with ReactiveMongoHighestSequence {
 
-  object Fields {
-    val persistenceId = "persistence_id"
-    val sequence = "sequence"
-    val event = "event"
-    val manifest = "manifest"
-    val datetime = "datetime"
-  }
-
   type Seq[+E] = immutable.Seq[E]
 
   val config: Config
