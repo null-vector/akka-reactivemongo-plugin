@@ -7,7 +7,10 @@ import org.nullvector.journal.{ReactiveMongoDriver, ReactiveMongoEventSerializer
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
-trait ReactiveMongoJournalImpl extends ReactiveMongoAsyncWrite with ReactiveMongoAsyncReplay with ReactiveMongoHighestSequence {
+trait ReactiveMongoJournalImpl extends ReactiveMongoAsyncWrite
+  with ReactiveMongoAsyncReplay
+  with ReactiveMongoHighestSequence
+  with ReactiveMongoAsyncDeleteMessages {
 
   type Seq[+E] = immutable.Seq[E]
 
@@ -17,7 +20,5 @@ trait ReactiveMongoJournalImpl extends ReactiveMongoAsyncWrite with ReactiveMong
   protected lazy val serializer = ReactiveMongoEventSerializer(actorSystem)
   protected lazy val rxDriver = ReactiveMongoDriver(actorSystem)
   protected implicit lazy val dispatcher: ExecutionContext = actorSystem.dispatcher
-
-  def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] = ???
 
 }

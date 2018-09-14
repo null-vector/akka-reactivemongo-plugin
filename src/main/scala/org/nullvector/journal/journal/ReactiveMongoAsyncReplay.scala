@@ -28,13 +28,14 @@ trait ReactiveMongoAsyncReplay {
     }.flatMap { docs =>
       Source(docs)
         .mapAsync(15) { doc =>
-          serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.event).get)
+          val manifest = doc.getAs[String](Fields.manifest).get
+          serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.event).get)
             .map(payload =>
               PersistentRepr(
                 payload,
                 doc.getAs[Long](Fields.sequence).get,
                 doc.getAs[String](Fields.persistenceId).get,
-                doc.getAs[String](Fields.manifest).get
+                manifest
               )
             )
         }

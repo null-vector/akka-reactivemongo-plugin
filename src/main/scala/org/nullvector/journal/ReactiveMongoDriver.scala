@@ -5,7 +5,7 @@ import akka.util.Timeout
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 import akka.pattern._
@@ -43,9 +43,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   }
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {
-    val promise = PromiseRef(system, 1.seconds)
-    collections.tell(GetJournalCollectionNameFor(persistentId), promise.ref)
-    promise.future.mapTo[BSONCollection]
+    val promise = Promise[BSONCollection]
+    collections ! GetJournalCollectionNameFor(persistentId, promise)
+    promise.future
   }
 
   class Collections() extends Actor {
@@ -58,9 +58,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     ).newInstance().asInstanceOf[CollectionNameMapping]
 
     override def receive: Receive = {
-      case GetJournalCollectionNameFor(persistentId) =>
+      case GetJournalCollectionNameFor(persistentId, promise) =>
         val name = s"$journalPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
-        sender() ! database.collection[BSONCollection](name)
+        promise success database.collection[BSONCollection](name)
         self ! VerifyIndex(name)
 
       case VerifyIndex(collectionName) =>
@@ -93,7 +93,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     }
   }
 
-  case class GetJournalCollectionNameFor(persistentId: String)
+  case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
 
   private case class VerifyIndex(collectionName: String)
 
