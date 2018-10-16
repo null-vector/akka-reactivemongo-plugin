@@ -12,3 +12,10 @@ def pepe[T <: Product](implicit ev: ClassTag[T]) = {
 }
 
 pepe[Hola]
+
+case class Pepe(list: List[Int])
+
+val bool = classOf[List[Int]].isAssignableFrom(List(1, 2, 3).getClass)
+
+
+

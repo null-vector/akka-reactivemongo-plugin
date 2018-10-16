@@ -15,9 +15,8 @@ trait ReactiveMongoAsyncWrite {
   def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]] = {
     rxDriver.journalCollection(messages.head.persistenceId).flatMap { collection =>
       Future.traverse(messages.flatMap(_.payload))(persistentRepr =>
-        serializer.serialize(persistentRepr).map{
-          case Left(serializedRep) => rep2doc(serializedRep)
-          case Right((serializedRep, tags)) => rep2doc(serializedRep, tags)
+        serializer.serialize(persistentRepr).map {
+          case (serializedRep, tags) => rep2doc(serializedRep, tags)
         }.flatMap(doc => collection.insert(doc)).map(result =>
           if (result.ok) Success({}) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n")))
         )

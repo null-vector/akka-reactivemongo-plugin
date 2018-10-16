@@ -6,6 +6,10 @@ import com.typesafe.config.Config
 
 class ReactiveMongoJournal(val config: Config) extends AsyncWriteJournal with ReactiveMongoJournalImpl {
 
-  override val actorSystem: ActorSystem = context.system
+  lazy val actorSystem: ActorSystem = context.system
 
+}
+
+object ReactiveMongoJournal {
+  val pluginId = "akka-persistence-reactivemongo-journal"
 }

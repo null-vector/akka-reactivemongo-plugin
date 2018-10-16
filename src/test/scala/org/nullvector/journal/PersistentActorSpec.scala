@@ -5,6 +5,7 @@ import akka.persistence.PersistentActor
 import akka.persistence.journal.Tagged
 import akka.testkit.{ImplicitSender, TestKit}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
 
 import scala.concurrent.duration._
@@ -15,6 +16,8 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
   private val serializer = ReactiveMongoEventSerializer(system)
   private val autoRestartFactory = new AutoRestartFactory(system)
+
+  serializer.addEventAdapter(new AnEventEventAdapter)
 
   def randomId: Long = Random.nextLong().abs
 
@@ -37,15 +40,6 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
       actorRef ! Command("get_state")
       expectMsg(Some("Command7"))
-    }
-
-    "Persist Events with Tags" in {
-      val persistId = randomId.toString
-      val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
-      actorRef ! Command(Tagged("Command2", Set("tag_1", "tag_2")))
-      actorRef ! Command(Tagged("Command1", Set("tag_1", "tag_2")))
-      actorRef ! Command(Tagged("Command3", Set("tag_1", "tag_2")))
-      receiveN(3, 7.seconds)
     }
 
     "Recover Events" in {
@@ -85,6 +79,8 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
   case class Command(event: Any)
 
+  case class AnEvent(string: String)
+
   class SomePersistentActor(id: String) extends PersistentActor {
     override def persistenceId: String = s"SomeCollection-$id"
 
@@ -98,18 +94,31 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
         deleteMessages(lastSequenceNr)
         sender() ! state
 
-      case Command(event) =>
-        println(s"Will persist event $event")
-        persistAsync(event) { event =>
+      case Command(action) =>
+        println(s"Will persist action $action")
+        persistAsync(AnEvent(action.toString)) { event =>
           println(s"Event $event persisted")
-          state = Some(event.toString)
+          state = Some(event.string)
           sender() ! "ok"
         }
     }
 
     override def receiveRecover: Receive = {
-      case event: String => state = Some(event)
+      case AnEvent(string) => state = Some(string)
     }
+  }
+
+
+  class AnEventEventAdapter extends EventAdapter[AnEvent] {
+    override val payloadType: Class[AnEvent] = classOf[AnEvent]
+    override val manifest: String = "AnEvent"
+    override val tags: Set[String] = Set("tag_1", "tag_2")
+
+    private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
+
+    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.write(payload)
+
+    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.read(doc)
   }
 
 }

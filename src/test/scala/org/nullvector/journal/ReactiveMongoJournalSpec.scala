@@ -6,6 +6,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.journal.journal.ReactiveMongoJournalImpl
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import reactivemongo.bson.BSONDocument
 
 import scala.collection.immutable
 import scala.concurrent.Await
@@ -15,10 +16,15 @@ import scala.util.Random
 class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
 
-  val reactiveMongoJournalImpl = new ReactiveMongoJournalImpl {
+  val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl {
     override val config: Config = ConfigFactory.load()
     override val actorSystem: ActorSystem = system
   }
+
+  private val serializer = ReactiveMongoEventSerializer(system)
+  serializer.addEventAdapter(new ListAdapter())
+  serializer.addEventAdapter(new StringAdapter())
+  serializer.addEventAdapter(new SomeAdapter())
 
   "ReactiveMongoJournalImpl" should {
     "asyncWriteMessages & asyncReadHighestSequenceNr" in {
@@ -43,4 +49,41 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
   override def afterAll {
     shutdown()
   }
+
+  class ListAdapter extends EventAdapter[List[Int]] {
+
+    override val payloadType: Class[List[Int]] = classOf[List[Int]]
+    override val manifest: String = "mi_lista_v1"
+    override val tags: Set[String] = Set.empty
+
+    override def payloadToBson(payload: List[Int]): BSONDocument = BSONDocument("list" -> payload)
+
+    override def bsonToPayload(BSONDocument: BSONDocument): List[Int] = ???
+
+  }
+
+  class SomeAdapter extends EventAdapter[Some[Double]] {
+
+    override val payloadType: Class[Some[Double]] = classOf[Some[Double]]
+    override val manifest: String = "mi_some_v1"
+    override val tags: Set[String] = Set.empty
+
+    override def payloadToBson(payload: Some[Double]): BSONDocument = BSONDocument("some" -> payload)
+
+    override def bsonToPayload(BSONDocument: BSONDocument): Some[Double] = ???
+
+  }
+
+  class StringAdapter extends EventAdapter[String] {
+
+    override val payloadType: Class[String] = classOf[String]
+    override val manifest: String = "mi_string_v1"
+    override val tags: Set[String] = Set.empty
+
+    override def payloadToBson(payload: String): BSONDocument = BSONDocument("string" -> payload)
+
+    override def bsonToPayload(BSONDocument: BSONDocument): String = ???
+
+  }
+
 }
