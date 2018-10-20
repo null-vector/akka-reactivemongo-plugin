@@ -24,7 +24,7 @@ abstract class EventAdapter[E] {
 
   val manifest: String
 
-  val tags: Set[String]
+  def tags(payload: Any): Set[String]
 
   def payloadToBson(payload: E): BSONDocument
 
@@ -53,7 +53,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> r._3)
     }
 
-  def deserialize(manifest: String, event: BSONDocument): Future[Any] ={
+  def deserialize(manifest: String, event: BSONDocument): Future[Any] = {
     val promise = Promise[Any]
     adapterRegistryRef ! Deserialize(manifest, event, promise)
     promise.future
@@ -75,7 +75,8 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
       case Serialize(realPayload, promise) =>
         adaptersByType.get(AdapterKey(realPayload.getClass)) match {
-          case Some(adapter) => promise.trySuccess(adapter.toBson(realPayload), adapter.manifest, adapter.tags)
+          case Some(adapter) =>
+            promise.trySuccess(adapter.toBson(realPayload), adapter.manifest, adapter.tags(realPayload))
           case None => promise.tryFailure(new Exception(s"There is no an EventAdapter for $realPayload"))
         }
 

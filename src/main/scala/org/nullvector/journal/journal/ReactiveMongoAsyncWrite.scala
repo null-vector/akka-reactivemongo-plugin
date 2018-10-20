@@ -13,22 +13,29 @@ trait ReactiveMongoAsyncWrite {
   this: ReactiveMongoJournalImpl =>
 
   def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]] = {
-    rxDriver.journalCollection(messages.head.persistenceId).flatMap { collection =>
-      Future.traverse(messages.flatMap(_.payload))(persistentRepr =>
-        serializer.serialize(persistentRepr).map {
-          case (serializedRep, tags) => rep2doc(serializedRep, tags)
-        }.flatMap(doc => collection.insert(doc)).map(result =>
+    for {
+      collection <- rxDriver.journalCollection(messages.head.persistenceId)
+      atomicDocs <- Future.traverse(messages){ atomic =>
+        Future.traverse(atomic.payload){ rep =>
+          serializer.serialize(rep).map {
+            case (serializedRep, tags) => rep2doc(serializedRep, tags)
+          }
+        }
+      }
+      results <- Future.traverse(atomicDocs){ docs =>
+        collection.insert[BSONDocument](ordered = true).many(docs).map(result =>
           if (result.ok) Success({}) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n")))
         )
-      )
-    }
+      }
+    } yield results
   }
 
-  def rep2doc(persistentRepr: PersistentRepr, tags: Set[String] = Set.empty): BSONDocument = BSONDocument(
+  def rep2doc(persistentRepr: PersistentRepr, tags: Set[String]): BSONDocument = BSONDocument(
     Fields.persistenceId -> persistentRepr.persistenceId,
     Fields.sequence -> persistentRepr.sequenceNr,
     Fields.event -> persistentRepr.payload.asInstanceOf[BSONDocument],
     Fields.manifest -> persistentRepr.manifest,
-    Fields.datetime -> new Date()
-  ) ++ (if (tags.nonEmpty) BSONDocument(Fields.tags -> tags) else BSONDocument.empty)
+    Fields.datetime -> new Date(),
+    Fields.tags -> tags
+  )
 }

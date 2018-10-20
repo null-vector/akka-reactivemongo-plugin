@@ -8,6 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
 
+import scala.collection.immutable._
 import scala.concurrent.duration._
 import scala.util.Random
 
@@ -40,6 +41,16 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
       actorRef ! Command("get_state")
       expectMsg(Some("Command7"))
+    }
+
+    "PersistAll" in {
+      val persistId = randomId.toString
+      val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
+      actorRef ! MultiCommand("Action One", "Action Two", "Action Three")
+      receiveN(1, 7.seconds)
+      actorRef ! Kill
+      actorRef ! Command("get_state")
+      expectMsg(7.seconds, Some("Action Three"))
     }
 
     "Recover Events" in {
@@ -77,7 +88,9 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     shutdown()
   }
 
-  case class Command(event: Any)
+  case class Command(action: Any)
+
+  case class MultiCommand(action1: String, action2: String, action3: String)
 
   case class AnEvent(string: String)
 
@@ -101,6 +114,17 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
           state = Some(event.string)
           sender() ! "ok"
         }
+
+      case MultiCommand(action1, action2, action3) =>
+        println(s"Will persist MultiCommand")
+
+        persistAll(Seq(AnEvent(action1), AnEvent(action2), AnEvent(action3))) { _ => }
+        deferAsync(Unit) { _ =>
+          println(s"All Events persisted")
+          state = Some(action3)
+          sender() ! "ok"
+        }
+
     }
 
     override def receiveRecover: Receive = {
@@ -112,7 +136,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   class AnEventEventAdapter extends EventAdapter[AnEvent] {
     override val payloadType: Class[AnEvent] = classOf[AnEvent]
     override val manifest: String = "AnEvent"
-    override val tags: Set[String] = Set("tag_1", "tag_2")
+    override def tags(payload: Any): Set[String] = Set("tag_1", "tag_2")
 
     private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
 

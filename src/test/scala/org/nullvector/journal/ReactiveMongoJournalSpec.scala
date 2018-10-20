@@ -54,7 +54,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val payloadType: Class[List[Int]] = classOf[List[Int]]
     override val manifest: String = "mi_lista_v1"
-    override val tags: Set[String] = Set.empty
+    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: List[Int]): BSONDocument = BSONDocument("list" -> payload)
 
@@ -66,7 +66,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val payloadType: Class[Some[Double]] = classOf[Some[Double]]
     override val manifest: String = "mi_some_v1"
-    override val tags: Set[String] = Set.empty
+    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: Some[Double]): BSONDocument = BSONDocument("some" -> payload)
 
@@ -78,7 +78,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val payloadType: Class[String] = classOf[String]
     override val manifest: String = "mi_string_v1"
-    override val tags: Set[String] = Set.empty
+    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: String): BSONDocument = BSONDocument("string" -> payload)
 
