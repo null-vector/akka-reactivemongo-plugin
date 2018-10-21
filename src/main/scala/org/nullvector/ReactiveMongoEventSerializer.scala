@@ -1,4 +1,4 @@
-package org.nullvector.journal
+package org.nullvector
 
 import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.persistence.PersistentRepr
@@ -18,20 +18,27 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
 }
 
-abstract class EventAdapter[E] {
+abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
 
-  val payloadType: Class[E]
+  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
+
+  val eventKey: AdapterKey[E] = AdapterKey(ev.runtimeClass.asInstanceOf[Class[E]])
+
+  def tags(payload: Any): Set[String] = Set.empty
 
   val manifest: String
 
-  def tags(payload: Any): Set[String]
-
   def payloadToBson(payload: E): BSONDocument
-
-  private[journal] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
 
   def bsonToPayload(BSONDocument: BSONDocument): E
 
+}
+
+case class AdapterKey[A](payloadType: Class[A]) {
+
+  override def hashCode(): Int = payloadType.getPackage.hashCode()
+
+  override def equals(obj: Any): Boolean = payloadType.isAssignableFrom(obj.asInstanceOf[AdapterKey[_]].payloadType)
 }
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
@@ -65,12 +72,12 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   class EventAdapterRegistry extends Actor {
 
-    private val adaptersByType: mutable.HashMap[AdapterKey, EventAdapter[_]] = mutable.HashMap()
+    private val adaptersByType: mutable.HashMap[AdapterKey[_], EventAdapter[_]] = mutable.HashMap()
     private val adaptersByManifest: mutable.HashMap[String, EventAdapter[_]] = mutable.HashMap()
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
-        adaptersByType += AdapterKey(eventAdapter.payloadType) -> eventAdapter
+        adaptersByType += eventAdapter.eventKey -> eventAdapter
         adaptersByManifest += eventAdapter.manifest -> eventAdapter
 
       case Serialize(realPayload, promise) =>
@@ -86,14 +93,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
           case None => promise.tryFailure(new Exception(s"There is no an EventAdapter for $manifest"))
         }
     }
-
-    case class AdapterKey(clazz: Class[_]) {
-
-      override def hashCode(): Int = clazz.getPackage.hashCode()
-
-      override def equals(obj: Any): Boolean = clazz.isAssignableFrom(obj.asInstanceOf[AdapterKey].clazz)
-    }
-
   }
 
   case class RegisterAdapter(eventAdapter: EventAdapter[_])

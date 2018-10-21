@@ -1,4 +1,4 @@
-package org.nullvector.journal
+package org.nullvector
 
 trait CollectionNameMapping {
 

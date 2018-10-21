@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.nullvector.journal.journal.ReactiveMongoJournalImpl
+import org.nullvector.{EventAdapter, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.BSONDocument
 
@@ -32,7 +32,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val pId = s"SomeCollection-${Random.nextLong().abs}"
 
       val events = immutable.Seq(
-        AtomicWrite(PersistentRepr(payload = List(1,2,3), persistenceId = pId, sequenceNr = 23)),
+        AtomicWrite(PersistentRepr(payload = List(1, 2, 3), persistenceId = pId, sequenceNr = 23)),
         AtomicWrite(PersistentRepr(payload = Some(3.14), persistenceId = pId, sequenceNr = 24)),
         AtomicWrite(PersistentRepr(payload = "OneMoreEvent", persistenceId = pId, sequenceNr = 25))
       )
@@ -52,9 +52,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
   class ListAdapter extends EventAdapter[List[Int]] {
 
-    override val payloadType: Class[List[Int]] = classOf[List[Int]]
     override val manifest: String = "mi_lista_v1"
-    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: List[Int]): BSONDocument = BSONDocument("list" -> payload)
 
@@ -64,9 +62,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
   class SomeAdapter extends EventAdapter[Some[Double]] {
 
-    override val payloadType: Class[Some[Double]] = classOf[Some[Double]]
     override val manifest: String = "mi_some_v1"
-    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: Some[Double]): BSONDocument = BSONDocument("some" -> payload)
 
@@ -76,9 +72,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
   class StringAdapter extends EventAdapter[String] {
 
-    override val payloadType: Class[String] = classOf[String]
     override val manifest: String = "mi_string_v1"
-    override def tags(payload: Any): Set[String] = Set.empty
 
     override def payloadToBson(payload: String): BSONDocument = BSONDocument("string" -> payload)
 

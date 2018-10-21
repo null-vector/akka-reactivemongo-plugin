@@ -1,9 +1,9 @@
-package org.nullvector.journal.journal
+package org.nullvector.journal
 
 import java.util.Date
 
 import akka.persistence.{AtomicWrite, PersistentRepr}
-import org.nullvector.journal.Fields
+import org.nullvector.Fields
 import reactivemongo.bson.BSONDocument
 
 import scala.concurrent.Future

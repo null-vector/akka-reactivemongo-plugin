@@ -1,6 +1,6 @@
-package org.nullvector.journal.journal
+package org.nullvector.journal
 
-import org.nullvector.journal.Fields
+import org.nullvector.Fields
 import reactivemongo.bson.{BSONDocument, BSONString}
 
 import scala.concurrent.Future

@@ -1,4 +1,4 @@
-package org.nullvector.journal.journal
+package org.nullvector.journal
 
 import akka.actor.ActorSystem
 import akka.persistence.journal.AsyncWriteJournal

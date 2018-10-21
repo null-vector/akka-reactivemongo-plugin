@@ -1,19 +1,16 @@
-package org.nullvector.journal
+package org.nullvector
 
 import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
 import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.api.commands.CommandError
+import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
 import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
 
-import scala.concurrent.{Await, Future, Promise}
-import scala.concurrent.duration._
-import scala.util.{Failure, Success}
-import akka.pattern._
-import reactivemongo.api.commands.CommandError
-import reactivemongo.api.commands.bson.DefaultBSONCommandError
-import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType, IndexesManager}
-
 import scala.collection.mutable
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future, Promise}
+import scala.util.{Failure, Success, Try}
 
 object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with ExtensionIdProvider {
 
@@ -48,9 +45,16 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promise.future
   }
 
+  def snapshotCollection(persistentId: String): Future[BSONCollection] = {
+    val promise = Promise[BSONCollection]
+    collections ! GetSnapshotCollectionNameFor(persistentId, promise)
+    promise.future
+  }
+
   class Collections() extends Actor {
 
     private val journalPrefix = "journal"
+    private val snapshotPrefix = "snapshot"
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
 
     private val nameMapping: CollectionNameMapping = system.getClass.getClassLoader.loadClass(
@@ -60,10 +64,15 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     override def receive: Receive = {
       case GetJournalCollectionNameFor(persistentId, promise) =>
         val name = s"$journalPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
-        promise success database.collection[BSONCollection](name)
-        self ! VerifyIndex(name)
+        promise complete Try(database.collection[BSONCollection](name))
+        self ! VerifyJournalIndices(name)
 
-      case VerifyIndex(collectionName) =>
+      case GetSnapshotCollectionNameFor(persistentId, promise) =>
+        val name = s"$snapshotPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
+        promise complete Try(database.collection[BSONCollection](name))
+        self ! VerifySnapshotIndices(name)
+
+      case VerifyJournalIndices(collectionName) =>
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
           for {
@@ -74,15 +83,36 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
           } yield Unit
         }
 
-      case AddVerified(collectionName) =>
-        println(s"$collectionName verified")
-        verifiedNames += collectionName
+      case VerifySnapshotIndices(collectionName) =>
+        if (!verifiedNames.contains(collectionName)) {
+          val collection = database.collection[BSONCollection](collectionName)
+          for {
+            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => Unit }
+            _ <- createSnapshotIndex(collection.indexesManager)
+            _ <- Future.successful(self ! AddVerified(collectionName))
+          } yield Unit
+        }
+
+      case AddVerified(collectionName) => verifiedNames += collectionName
 
     }
 
     private def createPidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
       val indexName = "pid_seq"
-      val index = Index(Seq(Fields.persistenceId -> IndexType.Ascending, Fields.sequence -> IndexType.Ascending), Some(indexName), unique = true)
+      val index = Index(Seq(
+        Fields.persistenceId -> IndexType.Ascending,
+        Fields.sequence -> IndexType.Ascending
+      ), Some(indexName), unique = true)
+      indexesManager.create(index).map(_ => Unit)
+    }
+
+    private def createSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+      val indexName = "snapshot"
+      val index = Index(Seq(
+        Fields.persistenceId -> IndexType.Ascending,
+        Fields.sequence -> IndexType.Descending,
+        Fields.timestamp -> IndexType.Descending,
+      ), Some(indexName), unique = true)
       indexesManager.create(index).map(_ => Unit)
     }
 
@@ -95,7 +125,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
 
-  private case class VerifyIndex(collectionName: String)
+  case class GetSnapshotCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
+
+  private case class VerifyJournalIndices(collectionName: String)
+
+  private case class VerifySnapshotIndices(collectionName: String)
 
   private case class AddVerified(collectionName: String)
 

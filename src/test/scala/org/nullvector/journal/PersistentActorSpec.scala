@@ -4,6 +4,7 @@ import akka.actor.{ActorSystem, Kill, PoisonPill, Props}
 import akka.persistence.PersistentActor
 import akka.persistence.journal.Tagged
 import akka.testkit.{ImplicitSender, TestKit}
+import org.nullvector.{EventAdapter, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
@@ -134,8 +135,8 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
 
   class AnEventEventAdapter extends EventAdapter[AnEvent] {
-    override val payloadType: Class[AnEvent] = classOf[AnEvent]
     override val manifest: String = "AnEvent"
+
     override def tags(payload: Any): Set[String] = Set("tag_1", "tag_2")
 
     private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]

@@ -1,9 +1,9 @@
-package org.nullvector.journal.journal
+package org.nullvector.journal
 
 import akka.persistence.PersistentRepr
 import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, Materializer}
-import org.nullvector.journal.Fields
+import org.nullvector.Fields
 import reactivemongo.api.Cursor
 import reactivemongo.bson.BSONDocument
 
