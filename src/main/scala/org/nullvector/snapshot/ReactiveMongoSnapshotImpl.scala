@@ -1,6 +1,5 @@
 package org.nullvector.snapshot
 
-import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.bson.BSONDocument
@@ -47,17 +46,38 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
     for {
       collection <- rxDriver.snapshotCollection(metadata.persistenceId)
       (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
-      result <- collection.insert(BSONDocument(
+      _ <- collection.insert(BSONDocument(
         Fields.persistenceId -> metadata.persistenceId,
         Fields.sequence -> metadata.sequenceNr,
         Fields.timestamp -> metadata.timestamp,
         Fields.event -> rep.payload.asInstanceOf[BSONDocument],
         Fields.manifest -> rep.manifest,
       ))
-    } yield result
+    } yield Unit
   }
 
-  def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = ???
+  def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = {
+    rxDriver.snapshotCollection(metadata.persistenceId).flatMap { collection =>
+      val deleteBuilder = collection.delete(ordered = true)
+      deleteBuilder.element(
+        BSONDocument(
+          Fields.persistenceId -> metadata.persistenceId,
+          Fields.sequence -> metadata.sequenceNr,
+        ), None, None
+      ).flatMap(el => deleteBuilder.many(Seq(el)))
+    }.map(_ => Unit)
+  }
 
-  def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = ???
+  def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = {
+    rxDriver.snapshotCollection(persistenceId).flatMap { collection =>
+      val deleteBuilder = collection.delete(ordered = true)
+      deleteBuilder.element(
+        BSONDocument(
+          Fields.persistenceId -> persistenceId,
+          Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
+          Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
+        ), None, None
+      ).flatMap(el => deleteBuilder.many(Seq(el)))
+    }.map(_ => Unit)
+  }
 }

@@ -12,13 +12,12 @@ trait ReactiveMongoAsyncDeleteMessages {
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit] = {
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
       val deleteBuilder = collection.delete(ordered = true)
-      val eventualElement = deleteBuilder.element(
+      deleteBuilder.element(
         BSONDocument(
           Fields.persistenceId -> persistenceId,
           Fields.sequence -> BSONDocument("$lte" -> toSequenceNr),
         ), None, None
-      )
-      eventualElement.map(el => deleteBuilder.many(Seq(el))).map(_ => Unit)
-    }
+      ).flatMap(el => deleteBuilder.many(Seq(el)))
+    }.map(_ => Unit)
   }
 }
