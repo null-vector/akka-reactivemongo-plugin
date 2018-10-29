@@ -9,7 +9,7 @@ import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success, Try}
 
 object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with ExtensionIdProvider {
@@ -22,7 +22,7 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 
 class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
-  import system.dispatcher
+  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
 
   private implicit val timeout: Timeout = Timeout(5.seconds)
   private val collections: ActorRef = system.actorOf(Props(new Collections()))
@@ -51,6 +51,13 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promise.future
   }
 
+  def journals(): Future[List[BSONCollection]] = {
+    val promise = Promise[List[BSONCollection]]
+    collections ! GetJournals(promise)
+    promise.future
+  }
+
+
   class Collections() extends Actor {
 
     private val journalPrefix = "journal"
@@ -58,7 +65,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
 
     private val nameMapping: CollectionNameMapping = system.getClass.getClassLoader.loadClass(
-      system.settings.config.getString("akka.akka-persistence-reactivemongo.collection-name-mapping")
+      system.settings.config.getString("akka-persistence-reactivemongo.collection-name-mapping")
     ).newInstance().asInstanceOf[CollectionNameMapping]
 
     override def receive: Receive = {
@@ -95,6 +102,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
       case AddVerified(collectionName) => verifiedNames += collectionName
 
+      case GetJournals(response) =>
+        response completeWith (for {
+          names <- database.collectionNames
+          collections = names.filter(_.startsWith(journalPrefix)).map(database.collection[BSONCollection](_))
+        } yield collections)
     }
 
     private def createPidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
@@ -126,6 +138,8 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
 
   case class GetSnapshotCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
+
+  case class GetJournals(response: Promise[List[BSONCollection]])
 
   private case class VerifyJournalIndices(collectionName: String)
 

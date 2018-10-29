@@ -14,6 +14,8 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
+libraryDependencies += "joda-time" % "joda-time" % "2.10.1"
+
 libraryDependencies += "org.reactivemongo" %% "reactivemongo" % rxmongoVersion
 libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion
 

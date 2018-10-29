@@ -6,6 +6,7 @@ import akka.stream.{ActorMaterializer, Materializer}
 import org.nullvector.Fields
 import reactivemongo.api.Cursor
 import reactivemongo.bson.BSONDocument
+import reactivemongo.akkastream.cursorProducer
 
 import scala.concurrent.Future
 
@@ -24,9 +25,7 @@ trait ReactiveMongoAsyncReplay {
       ), None)
         .sort(BSONDocument(Fields.sequence -> 1))
         .cursor[BSONDocument]()
-        .collect[List](max.toInt, Cursor.FailOnError[List[BSONDocument]]())
-    }.flatMap { docs =>
-      Source(docs)
+        .documentSource()
         .mapAsync(15) { doc =>
           val manifest = doc.getAs[String](Fields.manifest).get
           serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.event).get)

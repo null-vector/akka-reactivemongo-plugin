@@ -6,7 +6,7 @@ import akka.persistence.journal.Tagged
 import reactivemongo.bson.BSONDocument
 
 import scala.collection.mutable
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
 
 object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerializer] with ExtensionIdProvider {
@@ -30,7 +30,7 @@ abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
 
   def payloadToBson(payload: E): BSONDocument
 
-  def bsonToPayload(BSONDocument: BSONDocument): E
+  def bsonToPayload(doc: BSONDocument): E
 
 }
 
@@ -43,7 +43,7 @@ case class AdapterKey[A](payloadType: Class[A]) {
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
 
-  import system.dispatcher
+  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
 
   private val adapterRegistryRef: ActorRef = system.actorOf(Props(new EventAdapterRegistry()))
 
