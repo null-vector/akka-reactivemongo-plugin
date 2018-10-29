@@ -94,8 +94,10 @@ class ReactiveMongoScalaReadJournal(system: ExtendedActorSystem, config: Config)
   override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     Source.fromFuture(rxDriver.journals())
       .mapConcat(identity)
+      .groupBy(100, _.name)
       .map(coll => buildQueryFrom(coll, offset, tag))
       .flatMapConcat(identity)
+      .mergeSubstreamsWithParallelism(100)
       .mapAsync(15) { doc =>
         val manifest = doc.getAs[String](Fields.manifest).get
         serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.event).get)

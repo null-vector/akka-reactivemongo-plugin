@@ -63,6 +63,8 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoP
       val envelopes = Await.result(eventualDone, 7.seconds)
       println(System.currentTimeMillis())
 
+      envelopes.foreach(println)
+
       envelopes.size shouldBe 500
     }
 
