@@ -63,8 +63,6 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoP
       val envelopes = Await.result(eventualDone, 7.seconds)
       println(System.currentTimeMillis())
 
-      envelopes.foreach(println)
-
       envelopes.size shouldBe 500
     }
 
@@ -99,8 +97,41 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoP
       println(System.currentTimeMillis())
 
       envelopes.size shouldBe 250
+    }
+
+    "Infinite Events by tag" in {
+      val prefixReadColl = "ReadCollection"
+
+      readJournal.eventsByTag("event_tag_1", NoOffset).runWith(Sink.foreach(println)).recover {
+        case e: Throwable => e.printStackTrace()
+      }
+
+      Thread.sleep(3 *1000)
+
+      println("Primer Tanda")
+
+      Await.ready(Future.sequence((1 to 10).map { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
+          AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
+        ))
+      }), 7.second)
+
+      Thread.sleep(7 * 1000)
+
+      println("Segunda Tanda")
+
+      Await.ready(Future.sequence((1 to 10).map { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
+          AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
+        ))
+      }), 7.second)
+
+      Thread.sleep(17 * 1000)
 
     }
+
   }
 
   override def afterAll {

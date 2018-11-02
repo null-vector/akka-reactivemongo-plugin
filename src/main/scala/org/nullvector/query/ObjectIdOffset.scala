@@ -11,8 +11,11 @@ object ObjectIdOffset {
   }
 }
 
-case class ObjectIdOffset(bsonObjectId: BSONObjectID) extends Offset {
-  override def toString: String = bsonObjectId.stringify
+case class ObjectIdOffset(bsonObjectId: BSONObjectID) extends Offset with Ordered[ObjectIdOffset] {
+
+  override val toString: String = s"id:${bsonObjectId.stringify} time:${bsonObjectId.time}"
+
+  override def compare(that: ObjectIdOffset): Int = bsonObjectId.stringify.compare(that.bsonObjectId.stringify)
 }
 
 
