@@ -42,7 +42,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
       val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22l)
 
-      Await.result(eventualLong, 1.second) should be(25l)
+      Await.result(eventualLong, 7.second) should be(25l)
     }
   }
 

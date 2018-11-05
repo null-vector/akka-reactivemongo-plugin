@@ -9,7 +9,3 @@ class ReactiveMongoJournal(val config: Config) extends AsyncWriteJournal with Re
   lazy val actorSystem: ActorSystem = context.system
 
 }
-
-object ReactiveMongoJournal {
-  val pluginId = "akka-persistence-reactivemongo-journal"
-}

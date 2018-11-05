@@ -29,7 +29,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
       val persistId = randomId.toString
       val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
       actorRef ! Command("get_state") //Will recover Nothing
-      expectMsg(7.seconds, None)
+      expectMsg(13.seconds, None)
 
       actorRef ! Command("Command1")
       actorRef ! Command("Command2")

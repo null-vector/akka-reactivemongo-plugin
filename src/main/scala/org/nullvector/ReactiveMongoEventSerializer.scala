@@ -95,11 +95,11 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     }
   }
 
-  case class RegisterAdapter(eventAdapter: EventAdapter[_])
+  private case class RegisterAdapter(eventAdapter: EventAdapter[_])
 
-  case class Serialize(realPayload: Any, resultPromise: Promise[(BSONDocument, String, Set[String])])
+  private case class Serialize(realPayload: Any, resultPromise: Promise[(BSONDocument, String, Set[String])])
 
-  case class Deserialize(manifest: String, BSONDocument: BSONDocument, promise: Promise[Any])
+  private case class Deserialize(manifest: String, BSONDocument: BSONDocument, promise: Promise[Any])
 
 }
 
