@@ -28,7 +28,8 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   private val collections: ActorRef = system.actorOf(Props(new Collections()))
 
   private val database: DefaultDB = {
-    val parsedURI = MongoConnection.parseURI("mongodb://localhost/test?rm.failover=900ms:21x1.30") match {
+    val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
+    val parsedURI = MongoConnection.parseURI(mongoUri) match {
       case Success(_parsedURI) => _parsedURI
       case Failure(exception) => throw exception
     }
