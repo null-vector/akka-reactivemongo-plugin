@@ -22,4 +22,6 @@ libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmon
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % Test
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 
+licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+
 coverageExcludedPackages := "<empty>;.*ReactiveMongoJavaReadJournal.*"
