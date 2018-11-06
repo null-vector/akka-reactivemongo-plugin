@@ -20,7 +20,7 @@ import scala.concurrent.duration._
 
 class ReactiveMongoScalaReadJournal(system: ExtendedActorSystem, config: Config)
   extends akka.persistence.query.scaladsl.ReadJournal
-    with EventsQueiers
+    with EventsQueries
     with PersistenceIdsQueries {
 
   protected lazy val serializer = ReactiveMongoEventSerializer(system)

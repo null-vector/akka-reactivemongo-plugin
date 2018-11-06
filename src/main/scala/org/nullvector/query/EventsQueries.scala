@@ -8,7 +8,7 @@ import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.bson.{BSONDocument, BSONObjectID}
 import reactivemongo.akkastream.cursorProducer
 
-trait EventsQueiers
+trait EventsQueries
   extends akka.persistence.query.scaladsl.EventsByTagQuery
     with akka.persistence.query.scaladsl.EventsByPersistenceIdQuery
     with akka.persistence.query.scaladsl.CurrentEventsByTagQuery
@@ -25,7 +25,8 @@ trait EventsQueiers
 
   override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long
                                            ): Source[EventEnvelope, NotUsed] = {
-    Source.fromFuture(rxDriver.journalCollection(persistenceId))
+    Source
+      .fromFuture(rxDriver.journalCollection(persistenceId))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
       .via(document2Envelope)
   }
