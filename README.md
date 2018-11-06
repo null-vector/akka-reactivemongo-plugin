@@ -16,7 +16,7 @@ libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.0.0",
 ```
 
 ## Configuration
-To active the plugin an set the mongodb uri you have to add in your appication.conf the following lines:
+To active the plugin an set the mongodb uri you have to add in your application.conf the following lines:
 ```
 akka.persistence.journal.plugin = "akka-persistence-reactivemongo-journal"
 akka.persistence.snapshot-store.plugin = "akka-persistence-reactivemongo-snapshot"
