@@ -85,4 +85,13 @@ Sometime is necesary to create an Offset:
 val offset = ObjectIdOffset(DateTime.now())
 
 ```
+For streams that never complete like `#persistenceIds`, `#eventsByTag`, etc. it is possible to configure the interval that pulls from the journal:
+```
+akka-persistence-reactivemongo {
+  mongo-uri = "mongodb://localhost/test?rm.failover=900ms:21x1.30"
+  read-journal {
+    refresh-interval = 2s
+  }
+}
+```
 
