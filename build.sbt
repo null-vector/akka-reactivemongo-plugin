@@ -1,6 +1,6 @@
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
-version := "1.0.0"
+version := "1.0.3"
 scalaVersion := "2.12.7"
 val akkaVersion = "2.5.17"
 val rxmongoVersion = "0.16.0"
