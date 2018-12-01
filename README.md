@@ -6,7 +6,7 @@
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugins needs scala `2.12.x`, akka `2.5.x` and reactivemongo `0.16.x`.
+This plugin needs scala `2.12.x`, akka `2.5.x` and reactivemongo `0.16.x`.
 
 Add in your `build.sbt` the following lines:
 ```scala
@@ -55,7 +55,7 @@ And then you have to register the new Adapter:
 ## Persistence Id
 By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
 
-You can change the persistence id format by adding yor own collection extractor name, implementing the trait `org.nullvector.CollectionNameMapping`,
+You can change the persistence id format by adding your own collection extractor name, implementing the trait `org.nullvector.CollectionNameMapping`,
 and registering in the configuration:
 ```
 akka-persistence-reactivemongo {
@@ -66,4 +66,23 @@ akka-persistence-reactivemongo {
 
 ## Persistence Query
 
-(documentation wip...)
+Here are some examples of how to use persistence query:
+```scala
+
+val readJournal = PersistenceQuery(system).readJournalFor[ReactiveMongoScalaReadJournal](ReactiveMongoJournalProvider.pluginId)
+
+val tagsSource: Source[EventEnvelope, NotUsed] = readJournal.currentEventsByTag("some_tag", NoOffset)
+
+tagsSource.runWith(Sink.foreach{ envelope => envelope.event match {
+  case UserAdded(name, age) => // Do Something
+}})
+
+```
+
+Sometime is necesary to create an Offset:
+```scala
+
+val offset = ObjectIdOffset(DateTime.now())
+
+```
+
