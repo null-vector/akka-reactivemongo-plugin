@@ -15,7 +15,7 @@ trait ReactiveMongoAsyncDeleteMessages {
       deleteBuilder.element(
         BSONDocument(
           Fields.persistenceId -> persistenceId,
-          Fields.sequence -> BSONDocument("$lte" -> toSequenceNr),
+          Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr),
         ), None, None
       ).flatMap(el => deleteBuilder.many(Seq(el)))
     }.map(_ => Unit)

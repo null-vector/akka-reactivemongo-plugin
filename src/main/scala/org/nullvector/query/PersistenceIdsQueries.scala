@@ -43,7 +43,7 @@ trait PersistenceIdsQueries
 
   private def buildFindAllIds(collection: BSONCollection, offset: Offset): Source[PersistenceId, Future[State]] = {
     collection
-      .find(BSONDocument(Fields.sequence -> 1L) ++ filterByOffset(offset), None)
+      .find(BSONDocument(Fields.from_sn -> 1L) ++ filterByOffset(offset), None)
       .sort(BSONDocument("_id" -> 1))
       .cursor[BSONDocument]()
       .documentSource()

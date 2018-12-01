@@ -114,7 +114,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       val indexName = "pid_seq"
       val index = Index(Seq(
         Fields.persistenceId -> IndexType.Ascending,
-        Fields.sequence -> IndexType.Ascending
+        Fields.to_sn -> IndexType.Descending
       ), Some(indexName), unique = true)
       indexesManager.create(index).map(_ => Unit)
     }
@@ -124,7 +124,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       val index = Index(Seq(
         Fields.persistenceId -> IndexType.Ascending,
         Fields.sequence -> IndexType.Descending,
-        Fields.timestamp -> IndexType.Descending,
+        Fields.snapshot_ts -> IndexType.Descending,
       ), Some(indexName), unique = true)
       indexesManager.create(index).map(_ => Unit)
     }

@@ -16,19 +16,21 @@ trait ReactiveMongoAsyncReplay {
   implicit lazy val materializer: Materializer = ActorMaterializer()(actorSystem)
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
-                         (recoveryCallback: PersistentRepr => Unit): Future[Unit] =
+                         (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
+    println(s"Recovering $persistenceId")
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
       collection.find(BSONDocument(
         Fields.persistenceId -> persistenceId,
-        Fields.sequence -> BSONDocument("$gte" -> fromSequenceNr),
-        Fields.sequence -> BSONDocument("$lte" -> toSequenceNr)
+        Fields.from_sn -> BSONDocument("$gte" -> fromSequenceNr),
+        Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr)
       ), None)
-        .sort(BSONDocument(Fields.sequence -> 1))
+        .sort(BSONDocument(Fields.to_sn -> 1))
         .cursor[BSONDocument]()
         .documentSource()
+        .mapConcat(_.getAs[Seq[BSONDocument]](Fields.events).get)
         .mapAsync(15) { doc =>
           val manifest = doc.getAs[String](Fields.manifest).get
-          serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.event).get)
+          serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.payload).get)
             .map(payload =>
               PersistentRepr(
                 payload,
@@ -40,5 +42,6 @@ trait ReactiveMongoAsyncReplay {
         }
         .runForeach(recoveryCallback)
     }.map { _ => }
+  }
 
 }

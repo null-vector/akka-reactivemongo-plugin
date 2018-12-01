@@ -10,14 +10,11 @@ trait ReactiveMongoHighestSequence {
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] =
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
-      import collection.BatchCommands.AggregationFramework._
-      val $match = Match(BSONDocument(
+      collection.find(BSONDocument(
         Fields.persistenceId -> persistenceId,
-        Fields.sequence -> BSONDocument("$gte" -> fromSequenceNr)
-      ))
-      val $group = Group(BSONString(s"$$${Fields.persistenceId}"))("seq" -> MaxField(Fields.sequence))
-
-      collection.aggregatorContext[BSONDocument]($match, List($group))
-        .prepared.cursor.headOption.map(_.map(_.getAs[Long]("seq").get).getOrElse(0l))
+        Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
+      ), Some(BSONDocument(Fields.to_sn -> 1)))
+        .one[BSONDocument]
+        .map(_.map(_.getAs[Long](Fields.to_sn).get).getOrElse(0l))
     }
 }

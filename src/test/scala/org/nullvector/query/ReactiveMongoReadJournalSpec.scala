@@ -49,17 +49,29 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       Await.result(Future.sequence((1 to 10).map { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
-        reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).map(jIdx =>
-          AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
-        ))
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
+          AtomicWrite(group.map(jdx =>
+            PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+          ))
+        ).to[immutable.Seq])
       }), 7.second)
 
-      val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
-      println(System.currentTimeMillis())
-      val envelopes = Await.result(eventualDone, 7.seconds)
-      println(System.currentTimeMillis())
+      {
+        val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+        println(System.currentTimeMillis())
+        val envelopes = Await.result(eventualDone, 1.seconds)
+        println(System.currentTimeMillis())
+        envelopes.size shouldBe 160
+      }
 
-      envelopes.size shouldBe 500
+      {
+        val eventualDone = readJournal.currentEventsByTag("event_tag_other", NoOffset).runWith(Sink.seq)
+        println(System.currentTimeMillis())
+        val envelopes = Await.result(eventualDone, 1.seconds)
+        println(System.currentTimeMillis())
+        envelopes.size shouldBe 170
+      }
+
     }
 
     "Events by tag from a given Offset" in {
@@ -225,6 +237,12 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     shutdown()
   }
 
+  def name(idx: Int): String = idx % 3 match {
+    case 0 => s"lechuga_$idx"
+    case 1 => s"tomate_$idx"
+    case 2 => s"cebolla_$idx"
+  }
+
   case class SomeEvent(name: String, price: Double)
 
   class SomeEventAdapter extends EventAdapter[SomeEvent] {
@@ -233,7 +251,11 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
     override val manifest: String = "some_event"
 
-    override def tags(payload: Any): Set[String] = Set("event_tag_1", "event_tag_2")
+    override def tags(payload: Any): Set[String] = payload match {
+      case SomeEvent(name, _) if name.startsWith("lechuga") => Set("event_tag_1", "event_tag_2")
+      case SomeEvent(name, _) if name.startsWith("tomate") => Set("event_tag_other")
+      case _ => Set.empty
+    }
 
     override def payloadToBson(payload: SomeEvent): BSONDocument = r.write(payload)
 

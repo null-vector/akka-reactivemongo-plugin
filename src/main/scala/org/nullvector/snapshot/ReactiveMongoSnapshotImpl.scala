@@ -16,18 +16,18 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
         Fields.persistenceId -> persistenceId,
         Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
         Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
-        Fields.timestamp -> BSONDocument("$gte" -> criteria.minTimestamp),
-        Fields.timestamp -> BSONDocument("$lte" -> criteria.maxTimestamp),
+        Fields.snapshot_ts -> BSONDocument("$gte" -> criteria.minTimestamp),
+        Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
       ), None)
         .one[BSONDocument]
 
       x = maybeDoc.map(doc =>
-        serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.event).get).map(event =>
+        serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.payload).get).map(event =>
           SelectedSnapshot(
             SnapshotMetadata(
               persistenceId,
               doc.getAs[Long](Fields.sequence).get,
-              doc.getAs[Long](Fields.timestamp).get,
+              doc.getAs[Long](Fields.snapshot_ts).get,
             ),
             event
           )
@@ -49,8 +49,8 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
       _ <- collection.insert(BSONDocument(
         Fields.persistenceId -> metadata.persistenceId,
         Fields.sequence -> metadata.sequenceNr,
-        Fields.timestamp -> metadata.timestamp,
-        Fields.event -> rep.payload.asInstanceOf[BSONDocument],
+        Fields.snapshot_ts -> metadata.timestamp,
+        Fields.payload -> rep.payload.asInstanceOf[BSONDocument],
         Fields.manifest -> rep.manifest,
       ))
     } yield Unit

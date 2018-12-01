@@ -32,6 +32,12 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val pId = s"SomeCollection-${Random.nextLong().abs}"
 
       val events = immutable.Seq(
+        AtomicWrite(immutable.Seq(
+          PersistentRepr(payload = List(4, 5), persistenceId = pId, sequenceNr = 19),
+          PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 20),
+          PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 21),
+          PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 22),
+        )),
         AtomicWrite(PersistentRepr(payload = List(1, 2, 3), persistenceId = pId, sequenceNr = 23)),
         AtomicWrite(PersistentRepr(payload = Some(3.14), persistenceId = pId, sequenceNr = 24)),
         AtomicWrite(PersistentRepr(payload = "OneMoreEvent", persistenceId = pId, sequenceNr = 25))
@@ -54,6 +60,8 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val manifest: String = "mi_lista_v1"
 
+    override def tags(payload: Any): Set[String] = Set("list_tag")
+
     override def payloadToBson(payload: List[Int]): BSONDocument = BSONDocument("list" -> payload)
 
     override def bsonToPayload(BSONDocument: BSONDocument): List[Int] = ???
@@ -73,6 +81,8 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
   class StringAdapter extends EventAdapter[String] {
 
     override val manifest: String = "mi_string_v1"
+
+    override def tags(payload: Any): Set[String] = Set("string_tag")
 
     override def payloadToBson(payload: String): BSONDocument = BSONDocument("string" -> payload)
 
