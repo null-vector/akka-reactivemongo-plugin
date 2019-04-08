@@ -28,7 +28,7 @@ class ReactiveMongoScalaReadJournal(system: ExtendedActorSystem, config: Config)
   protected implicit lazy val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
   protected implicit lazy val materializer: Materializer = ActorMaterializer()(system)
 
-  protected val refreshInterval: FiniteDuration = config.getDuration("refresh-interval", TimeUnit.MILLISECONDS).millis
+  protected val defaultRefreshInterval: FiniteDuration = config.getDuration("refresh-interval", TimeUnit.MILLISECONDS).millis
 
   protected def filterByOffset(offset: Offset): BSONDocument = {
     offset match {

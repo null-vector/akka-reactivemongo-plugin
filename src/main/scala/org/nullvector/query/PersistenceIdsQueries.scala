@@ -24,7 +24,13 @@ trait PersistenceIdsQueries
   this: ReactiveMongoScalaReadJournal =>
 
   override def persistenceIds(): Source[String, NotUsed] = {
-    Source.fromGraph(new PersistenceIdsSource(NoOffset, refreshInterval, currentPersistenceIds))
+    Source.fromGraph(new PullerGraph[PersistenceId, Offset](
+      NoOffset,
+      defaultRefreshInterval,
+      _.offset,
+      greaterOffsetOf,
+      o => currentPersistenceIds(o)
+    ))
       .flatMapConcat(identity)
       .map(_.persistenceId)
   }

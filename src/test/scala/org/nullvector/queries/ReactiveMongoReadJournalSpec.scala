@@ -1,24 +1,24 @@
-package org.nullvector.query
+package org.nullvector.queries
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import akka.actor.ActorSystem
 import akka.persistence.query.{EventEnvelope, NoOffset, PersistenceQuery}
-import akka.persistence.{AtomicWrite, Persistence, PersistentRepr}
-import akka.stream.{ActorMaterializer, NoMaterializer}
+import akka.persistence.{AtomicWrite, PersistentRepr}
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.joda.time.DateTime
 import org.nullvector.journal.ReactiveMongoJournalImpl
+import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
 import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
 
-import scala.collection.{immutable, mutable}
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.{Await, Future}
+import scala.collection.immutable
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.util.Random
 
 class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoReadJournal")) with ImplicitSender
@@ -26,7 +26,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
   import system.dispatcher
 
-  protected lazy val rxDriver = ReactiveMongoDriver(system)
+  protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
 
 
   val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl {
@@ -34,7 +34,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     override val actorSystem: ActorSystem = system
   }
 
-  private implicit val materializer = ActorMaterializer()
+  private implicit val materializer: ActorMaterializer = ActorMaterializer()
   val readJournal: ReactiveMongoScalaReadJournal =
     PersistenceQuery(system).readJournalFor[ReactiveMongoScalaReadJournal](ReactiveMongoJournalProvider.pluginId)
 
@@ -134,6 +134,48 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       }), 7.second)
 
       Thread.sleep(3 * 1000)
+
+      envelopes.size shouldBe 500
+    }
+
+    "Infinite Events by tag with Custom RefreshInterval" in {
+      val prefixReadColl = "ReadCollection"
+
+      dropAll()
+
+      val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
+
+      readJournal
+        .eventsByTag("event_tag_1", NoOffset)
+        .addAttributes(RefreshInterval(700.millis))
+        .runWith(Sink.foreach(e => envelopes.add(e))).recover {
+        case e: Throwable => e.printStackTrace()
+      }
+
+      readJournal
+        .eventsByTag("some_tag", NoOffset)
+        .addAttributes(RefreshInterval(700.millis))
+        .runWith(Sink.foreach(println))
+
+      Thread.sleep(1 * 1000)
+
+      Await.ready(Future.sequence((1 to 10).map { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
+          AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
+        ))
+      }), 7.second)
+
+      Thread.sleep(1 * 1000)
+
+      Await.ready(Future.sequence((1 to 10).map { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
+          AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
+        ))
+      }), 7.second)
+
+      Thread.sleep(1 * 1000)
 
       envelopes.size shouldBe 500
     }

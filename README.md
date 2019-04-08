@@ -95,3 +95,10 @@ akka-persistence-reactivemongo {
 }
 ```
 
+If you want different refresh intervals from different query, you can add a `RefreshInterval` Attribute in the Source definition:
+```scala
+  readJournal
+    .eventsByTag("some_tag", NoOffset)
+    .addAttributes(RefreshInterval(700.millis))
+    .runWith(Sink.foreach(println))
+```

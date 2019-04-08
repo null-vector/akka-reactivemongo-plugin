@@ -16,26 +16,39 @@ trait EventsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
-  override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long
-                                    ): Source[EventEnvelope, NotUsed] = {
+  val greaterOffsetOf: (Offset, Offset) => Offset = (leftOffset: Offset, rightOffset: Offset) => {
+    (leftOffset, rightOffset) match {
+      case (NoOffset, _) => rightOffset
+      case (leftId: ObjectIdOffset, rightId: ObjectIdOffset) if leftId < rightId => rightOffset
+      case _ => leftOffset
+    }
+
+  }
+
+  override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
     Source
-      .fromGraph(new EventsByIdSource(persistenceId, fromSequenceNr, toSequenceNr, refreshInterval, currentEventsByPersistenceId))
+      .fromGraph(new PullerGraph[EventEnvelope, (Long, Long)](
+        (fromSequenceNr, toSequenceNr),
+        defaultRefreshInterval,
+        e => (e.sequenceNr, Long.MaxValue),
+        (_, r) => r,
+        offset => currentEventsByPersistenceId(persistenceId, offset._1, offset._2)
+      ))
       .flatMapConcat(identity)
   }
 
-  override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long
-                                           ): Source[EventEnvelope, NotUsed] = {
+  override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
     Source
       .fromFuture(rxDriver.journalCollection(persistenceId))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
       .via(document2Envelope)
   }
 
-  override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source
-      .fromGraph(new EventsByTagsSource(Seq(tag), offset, refreshInterval, currentEventsByTags))
-      .flatMapConcat(identity)
-  }
+  override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = Source
+    .fromGraph(new PullerGraph[EventEnvelope, Offset](
+      offset, defaultRefreshInterval, _.offset, greaterOffsetOf, o => currentEventsByTag(tag, o))
+    )
+    .flatMapConcat(identity)
 
   override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     currentEventsByTags(Seq(tag), offset)
