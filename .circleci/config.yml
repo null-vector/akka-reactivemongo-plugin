@@ -32,7 +32,7 @@ jobs:
         # fallback to using the latest cache if no exact match is found
         - v1-dependencies-
 
-    - run: cat /dev/null | sbt update
+    - run: sbt update
 
     - save_cache:
         paths:
@@ -40,4 +40,5 @@ jobs:
         key: v1-dependencies--{{ checksum "build.sbt" }}
 
     # run tests!
-    - run: cat /dev/null | sh coverage.sh
+    - run: sbt coverage test coverageReport
+    - run: bash <(curl -s https://codecov.io/bash)
