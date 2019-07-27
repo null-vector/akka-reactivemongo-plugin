@@ -53,7 +53,7 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
         Fields.payload -> rep.payload.asInstanceOf[BSONDocument],
         Fields.manifest -> rep.manifest,
       ))
-    } yield Unit
+    } yield ()
   }
 
   def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = {
@@ -65,7 +65,7 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
           Fields.sequence -> metadata.sequenceNr,
         ), None, None
       ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => Unit)
+    }.map(_ => ())
   }
 
   def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = {
@@ -78,6 +78,6 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
           Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
         ), None, None
       ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => Unit)
+    }.map(_ => ())
   }
 }

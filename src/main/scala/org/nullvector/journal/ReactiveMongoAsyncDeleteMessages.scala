@@ -18,6 +18,6 @@ trait ReactiveMongoAsyncDeleteMessages {
           Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr),
         ), None, None
       ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => Unit)
+    }.map(_ => ())
   }
 }

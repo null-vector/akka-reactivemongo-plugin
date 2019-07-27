@@ -53,7 +53,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           AtomicWrite(group.map(jdx =>
             PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
           ))
-        ).to[immutable.Seq])
+        ).toSeq)
       }), 7.second)
 
       {

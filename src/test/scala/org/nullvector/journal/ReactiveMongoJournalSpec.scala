@@ -31,14 +31,16 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
       val pId = s"SomeCollection-${Random.nextLong().abs}"
 
+      val list_1 = AList(4, 5)
+      val list_2 = AList(1, 2, 3)
       val events = immutable.Seq(
         AtomicWrite(immutable.Seq(
-          PersistentRepr(payload = List(4, 5), persistenceId = pId, sequenceNr = 19),
+          PersistentRepr(payload = list_1, persistenceId = pId, sequenceNr = 19),
           PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 20),
           PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 21),
           PersistentRepr(payload = "SimulatePersistAll", persistenceId = pId, sequenceNr = 22),
         )),
-        AtomicWrite(PersistentRepr(payload = List(1, 2, 3), persistenceId = pId, sequenceNr = 23)),
+        AtomicWrite(PersistentRepr(payload = list_2, persistenceId = pId, sequenceNr = 23)),
         AtomicWrite(PersistentRepr(payload = Some(3.14), persistenceId = pId, sequenceNr = 24)),
         AtomicWrite(PersistentRepr(payload = "OneMoreEvent", persistenceId = pId, sequenceNr = 25))
       )
@@ -56,15 +58,17 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
     shutdown()
   }
 
-  class ListAdapter extends EventAdapter[List[Int]] {
+  case class AList(ints: Int*)
+
+  class ListAdapter extends EventAdapter[AList] {
 
     override val manifest: String = "mi_lista_v1"
 
     override def tags(payload: Any): Set[String] = Set("list_tag")
 
-    override def payloadToBson(payload: List[Int]): BSONDocument = BSONDocument("list" -> payload)
+    override def payloadToBson(payload: AList): BSONDocument = BSONDocument("ints" -> payload.ints)
 
-    override def bsonToPayload(BSONDocument: BSONDocument): List[Int] = ???
+    override def bsonToPayload(BSONDocument: BSONDocument): AList = ???
 
   }
 

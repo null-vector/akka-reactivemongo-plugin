@@ -31,7 +31,7 @@ trait ReactiveMongoAsyncWrite {
         }
       }
       results <- Future.traverse(atomicDocs) { doc =>
-        collection.insert[BSONDocument](ordered = true).one(doc).map(result =>
+        collection.insert(ordered = true).one(doc).map(result =>
           if (result.ok) Success({}) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n")))
         )
       }

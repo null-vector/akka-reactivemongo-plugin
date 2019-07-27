@@ -120,7 +120,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
         println(s"Will persist MultiCommand")
 
         persistAll(Seq(AnEvent(action1), AnEvent(action2), AnEvent(action3))) { _ => }
-        deferAsync(Unit) { _ =>
+        deferAsync(()) { _ =>
           println(s"All Events persisted")
           state = Some(action3)
           sender() ! "ok"

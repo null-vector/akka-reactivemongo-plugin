@@ -84,21 +84,21 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
           for {
-            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => Unit }
+            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
             _ <- createPidSeqIndex(collection.indexesManager)
             _ <- createTagIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
-          } yield Unit
+          } yield ()
         }
 
       case VerifySnapshotIndices(collectionName) =>
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
           for {
-            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => Unit }
+            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
             _ <- createSnapshotIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
-          } yield Unit
+          } yield ()
         }
 
       case AddVerified(collectionName) => verifiedNames += collectionName
@@ -116,7 +116,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         Fields.persistenceId -> IndexType.Ascending,
         Fields.to_sn -> IndexType.Descending
       ), Some(indexName), unique = true)
-      indexesManager.create(index).map(_ => Unit)
+      indexesManager.create(index).map(_ => ())
     }
 
     private def createSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
@@ -126,13 +126,13 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         Fields.sequence -> IndexType.Descending,
         Fields.snapshot_ts -> IndexType.Descending,
       ), Some(indexName), unique = true)
-      indexesManager.create(index).map(_ => Unit)
+      indexesManager.create(index).map(_ => ())
     }
 
     private def createTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
       val indexName = "tags"
       val index = Index(Seq(Fields.tags -> IndexType.Ascending), Some(indexName), sparse = true)
-      indexesManager.create(index).map(_ => Unit)
+      indexesManager.create(index).map(_ => ())
     }
   }
 
