@@ -11,7 +11,6 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
     for {
       collection <- rxDriver.snapshotCollection(persistenceId)
-
       maybeDoc <- collection.find(BSONDocument(
         Fields.persistenceId -> persistenceId,
         Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
@@ -20,10 +19,9 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
         Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
       ), None)
         .one[BSONDocument]
-
-      x = maybeDoc.map(doc =>
+      maybeSelected <- maybeDoc.map(doc =>
         serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.payload).get).map(event =>
-          SelectedSnapshot(
+          Some(SelectedSnapshot(
             SnapshotMetadata(
               persistenceId,
               doc.getAs[Long](Fields.sequence).get,
@@ -31,14 +29,8 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
             ),
             event
           )
-        )
-      )
-
-      maybeSelected <- x match {
-        case Some(future) => future.map(Some(_))
-        case _ => Future.successful(None)
-      }
-
+        ))
+      ).getOrElse(Future.successful(None))
     } yield maybeSelected
   }
 
@@ -46,7 +38,7 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
     for {
       collection <- rxDriver.snapshotCollection(metadata.persistenceId)
       (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
-      _ <- collection.insert(BSONDocument(
+      _ <- collection.insert(false).one(BSONDocument(
         Fields.persistenceId -> metadata.persistenceId,
         Fields.sequence -> metadata.sequenceNr,
         Fields.snapshot_ts -> metadata.timestamp,

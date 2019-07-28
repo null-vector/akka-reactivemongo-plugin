@@ -1,12 +1,10 @@
 package org.nullvector.journal
 
 import akka.persistence.PersistentRepr
-import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, Materializer}
 import org.nullvector.Fields
-import reactivemongo.api.Cursor
-import reactivemongo.bson.BSONDocument
 import reactivemongo.akkastream.cursorProducer
+import reactivemongo.bson.BSONDocument
 
 import scala.concurrent.Future
 
@@ -17,7 +15,6 @@ trait ReactiveMongoAsyncReplay {
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
-    println(s"Recovering $persistenceId")
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
       collection.find(BSONDocument(
         Fields.persistenceId -> persistenceId,

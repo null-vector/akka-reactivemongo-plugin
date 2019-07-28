@@ -15,6 +15,6 @@ trait ReactiveMongoHighestSequence {
         Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
       ), Some(BSONDocument(Fields.to_sn -> 1)))
         .one[BSONDocument]
-        .map(_.map(_.getAs[Long](Fields.to_sn).get).getOrElse(0l))
+        .map(_.map(_.getAs[Long](Fields.to_sn).get).getOrElse(0L))
     }
 }
