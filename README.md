@@ -5,13 +5,13 @@
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin needs scala `2.12.x`, akka `2.5.x` and reactivemongo `0.16.x`.
+This plugin support scala `2.12` and `2.13`, akka `2.5.23` and reactivemongo `0.18.3`.
 
 Add in your `build.sbt` the following lines:
 ```scala
 resolvers += "Akka RactiveMongo Plugin" at "https://dl.bintray.com/null-vector/releases"
 
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.0.3",
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.1.0",
 ```
 
 ## Configuration
