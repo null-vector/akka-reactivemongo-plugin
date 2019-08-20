@@ -46,6 +46,9 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = adapterRegistryRef ! RegisterAdapter(eventAdapter)
 
+  def addAkkaEventAdapter(eventType: Class[_], akkaEventAdapter: AkkaEventAdapter): Unit =
+    adapterRegistryRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
+
   def loadAkkaAdaptersFrom(path: String): Unit = {
     import scala.collection.JavaConverters._
 
@@ -55,17 +58,26 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     val eventTypesBindings = akkaAdaptersConfig.getConfig("event-adapter-bindings").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
     val akkaAdapterClasses = akkaAdapters.mapValues(value => Class.forName(value).asInstanceOf[Class[AkkaEventAdapter]])
+
     val wrappers = eventTypesBindings
       .map((t: (String, String)) => Class.forName(t._1) -> akkaAdapterClasses(t._2))
       .filterNot(_._1.isAssignableFrom(classOf[BSONDocument]))
-      .map((c: (Class[_], Class[AkkaEventAdapter])) => new AkkaEventAdapterWrapper(c._1, c._2, system)).toSeq
+      .map((c: (Class[_], Class[AkkaEventAdapter])) => c.copy(_2 = newAkkaAdapter(c._2))).toSeq
 
-    wrappers.foreach(addEventAdapter)
+    wrappers.foreach(e => addAkkaEventAdapter(e._1, e._2))
   }
 
+  private def newAkkaAdapter(akkaAdapterClass: Class[AkkaEventAdapter]): AkkaEventAdapter = {
+    akkaAdapterClass.getConstructors.find(_.getParameterTypes sameElements Array(classOf[ExtendedActorSystem])) match {
+      case Some(constructor) => constructor.newInstance(system).asInstanceOf[AkkaEventAdapter]
+      case None => akkaAdapterClass.newInstance()
+    }
+  }
+
+
   class EventAdapterRegistry extends Actor with ActorLogging {
-    private var adaptersByType: immutable.HashMap[AdapterKey, EventAdapter[_]] = immutable.HashMap()
-    private var adaptersByManifest: immutable.HashMap[String, EventAdapter[_]] = immutable.HashMap()
+    private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
+    private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
@@ -73,16 +85,36 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         adaptersByManifest = adaptersByManifest + (eventAdapter.manifest -> eventAdapter)
         log.info("EventAdapter {} with manifest {} was added", eventAdapter.eventKey, eventAdapter.manifest)
 
+      case RegisterAkkaAdapter(key, adapter) =>
+        val manifest = adapter.manifest(null)
+        adaptersByType = adaptersByType + (key -> adapter)
+        adaptersByManifest = adaptersByManifest + (manifest -> adapter)
+        log.info("Akka EventAdapter {} with manifest {} was added", key, manifest)
+
       case Serialize(realPayload, promise) => promise.completeWith(Future(
         adaptersByType.get(AdapterKey(realPayload.getClass)) match {
-          case Some(adapter) => (adapter.toBson(realPayload), adapter.manifest, adapter.tags(realPayload))
+          case Some(adapter) => adapter match {
+            case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.tags(realPayload))
+            case e: AkkaEventAdapter =>
+              e.toJournal(realPayload) match {
+                case Tagged(payload: BSONDocument, tags) => (payload, e.manifest(realPayload), tags)
+                case payload: BSONDocument => (payload, e.manifest(realPayload), Set.empty)
+              }
+          }
           case None => throw new Exception(s"There is no an EventAdapter for $realPayload")
         }
       ))
 
       case Deserialize(manifest, document, promise) => promise.completeWith(Future(
         adaptersByManifest.get(manifest) match {
-          case Some(adapter) => adapter.bsonToPayload(document)
+          case Some(adapter) => adapter match {
+            case e: EventAdapter[_] => e.bsonToPayload(document)
+            case e: AkkaEventAdapter => e.fromJournal(document, manifest) match {
+              case SingleEventSeq(event) => event
+              case EventsSeq(event :: _) => event
+              case e => throw new Exception(e.toString)
+            }
+          }
           case None => throw new Exception(s"There is no an EventAdapter for $manifest")
         }
       ))
@@ -90,6 +122,8 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   }
 
   private case class RegisterAdapter(eventAdapter: EventAdapter[_])
+
+  private case class RegisterAkkaAdapter(key: AdapterKey, adapter: AkkaEventAdapter)
 
   private case class Serialize(realPayload: Any, resultPromise: Promise[(BSONDocument, String, Set[String])])
 
@@ -118,34 +152,4 @@ case class AdapterKey(payloadType: Class[_]) {
   override def hashCode(): Int = payloadType.getPackage.hashCode()
 
   override def equals(obj: Any): Boolean = payloadType.isAssignableFrom(obj.asInstanceOf[AdapterKey].payloadType)
-}
-
-class AkkaEventAdapterWrapper(eventType: Class[_], akkaAdapterClass: Class[AkkaEventAdapter], system: ExtendedActorSystem) extends EventAdapter[Any] {
-
-  private val adapter = newAkkaAdapter
-
-  override val eventKey: AdapterKey = AdapterKey(eventType)
-
-  override val manifest: String = adapter.manifest(null)
-
-  override def payloadToBson(payload: Any): BSONDocument = adapter.toJournal(payload) match {
-    case Tagged(payload: BSONDocument, _) => payload
-    case payload: BSONDocument => payload
-    case payload => payload.asInstanceOf[BSONDocument]
-  }
-
-  override def tags(payload: Any): Set[String] = super.tags(payload)
-
-  override def bsonToPayload(doc: BSONDocument): Any = adapter.fromJournal(doc, manifest) match {
-    case SingleEventSeq(event) => event
-    case EventsSeq(event :: _) => event
-    case e => throw new Exception(e.toString)
-  }
-
-  def newAkkaAdapter: akka.persistence.journal.EventAdapter = {
-    akkaAdapterClass.getConstructors.find(_.getParameterTypes sameElements Array(classOf[ExtendedActorSystem])) match {
-      case Some(constructor) => constructor.newInstance(system).asInstanceOf[AkkaEventAdapter]
-      case None => akkaAdapterClass.newInstance()
-    }
-  }
 }
