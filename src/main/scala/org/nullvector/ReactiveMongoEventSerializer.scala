@@ -1,11 +1,11 @@
 package org.nullvector
 
-import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
-import akka.persistence.PersistentRepr
-import akka.persistence.journal.Tagged
+import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
+import akka.persistence._
+import akka.persistence.journal.{EmptyEventSeq, EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
 import reactivemongo.bson.BSONDocument
 
-import scala.collection.mutable
+import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
 
@@ -16,29 +16,6 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoEventSerializer =
     new ReactiveMongoEventSerializer(system)
 
-}
-
-abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
-
-  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
-
-  val eventKey: AdapterKey[E] = AdapterKey(ev.runtimeClass.asInstanceOf[Class[E]])
-
-  def tags(payload: Any): Set[String] = Set.empty
-
-  val manifest: String
-
-  def payloadToBson(payload: E): BSONDocument
-
-  def bsonToPayload(doc: BSONDocument): E
-
-}
-
-case class AdapterKey[A](payloadType: Class[A]) {
-
-  override def hashCode(): Int = payloadType.getPackage.hashCode()
-
-  override def equals(obj: Any): Boolean = payloadType.isAssignableFrom(obj.asInstanceOf[AdapterKey[_]].payloadType)
 }
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
@@ -67,31 +44,48 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   }
 
-
   def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = adapterRegistryRef ! RegisterAdapter(eventAdapter)
 
-  class EventAdapterRegistry extends Actor {
+  def loadAkkaAdaptersFrom(path: String): Unit = {
+    import scala.collection.JavaConverters._
 
-    private val adaptersByType: mutable.HashMap[AdapterKey[_], EventAdapter[_]] = mutable.HashMap()
-    private val adaptersByManifest: mutable.HashMap[String, EventAdapter[_]] = mutable.HashMap()
+    val akkaAdaptersConfig = system.settings.config.getConfig(path)
+    val akkaAdapters = akkaAdaptersConfig.getConfig("event-adapters").entrySet().asScala
+      .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
+    val eventTypesBindings = akkaAdaptersConfig.getConfig("event-adapter-bindings").entrySet().asScala
+      .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
+    val akkaAdapterClasses = akkaAdapters.mapValues(value => Class.forName(value).asInstanceOf[Class[AkkaEventAdapter]])
+    val wrappers = eventTypesBindings
+      .map((t: (String, String)) => Class.forName(t._1) -> akkaAdapterClasses(t._2))
+      .filterNot(_._1.isAssignableFrom(classOf[BSONDocument]))
+      .map((c: (Class[_], Class[AkkaEventAdapter])) => new AkkaEventAdapterWrapper(c._1, c._2, system)).toSeq
+
+    wrappers.foreach(addEventAdapter)
+  }
+
+  class EventAdapterRegistry extends Actor with ActorLogging {
+    private var adaptersByType: immutable.HashMap[AdapterKey, EventAdapter[_]] = immutable.HashMap()
+    private var adaptersByManifest: immutable.HashMap[String, EventAdapter[_]] = immutable.HashMap()
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
-        adaptersByType += eventAdapter.eventKey -> eventAdapter
-        adaptersByManifest += eventAdapter.manifest -> eventAdapter
+        adaptersByType = adaptersByType + (eventAdapter.eventKey -> eventAdapter)
+        adaptersByManifest = adaptersByManifest + (eventAdapter.manifest -> eventAdapter)
+        log.info("EventAdapter {} with manifest {} was added", eventAdapter.eventKey, eventAdapter.manifest)
 
-      case Serialize(realPayload, promise) =>
+      case Serialize(realPayload, promise) => promise.completeWith(Future(
         adaptersByType.get(AdapterKey(realPayload.getClass)) match {
-          case Some(adapter) =>
-            promise.trySuccess(adapter.toBson(realPayload), adapter.manifest, adapter.tags(realPayload))
-          case None => promise.tryFailure(new Exception(s"There is no an EventAdapter for $realPayload"))
+          case Some(adapter) => (adapter.toBson(realPayload), adapter.manifest, adapter.tags(realPayload))
+          case None => throw new Exception(s"There is no an EventAdapter for $realPayload")
         }
+      ))
 
-      case Deserialize(manifest, document, promise) =>
+      case Deserialize(manifest, document, promise) => promise.completeWith(Future(
         adaptersByManifest.get(manifest) match {
-          case Some(adapter) => promise.trySuccess(adapter.bsonToPayload(document))
-          case None => promise.tryFailure(new Exception(s"There is no an EventAdapter for $manifest"))
+          case Some(adapter) => adapter.bsonToPayload(document)
+          case None => throw new Exception(s"There is no an EventAdapter for $manifest")
         }
+      ))
     }
   }
 
@@ -103,3 +97,55 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
 }
 
+abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
+
+  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
+
+  val eventKey: AdapterKey = AdapterKey(ev.runtimeClass.asInstanceOf[Class[E]])
+
+  def tags(payload: Any): Set[String] = Set.empty
+
+  val manifest: String
+
+  def payloadToBson(payload: E): BSONDocument
+
+  def bsonToPayload(doc: BSONDocument): E
+
+}
+
+case class AdapterKey(payloadType: Class[_]) {
+
+  override def hashCode(): Int = payloadType.getPackage.hashCode()
+
+  override def equals(obj: Any): Boolean = payloadType.isAssignableFrom(obj.asInstanceOf[AdapterKey].payloadType)
+}
+
+class AkkaEventAdapterWrapper(eventType: Class[_], akkaAdapterClass: Class[AkkaEventAdapter], system: ExtendedActorSystem) extends EventAdapter[Any] {
+
+  private val adapter = newAkkaAdapter
+
+  override val eventKey: AdapterKey = AdapterKey(eventType)
+
+  override val manifest: String = adapter.manifest(null)
+
+  override def payloadToBson(payload: Any): BSONDocument = adapter.toJournal(payload) match {
+    case Tagged(payload: BSONDocument, _) => payload
+    case payload: BSONDocument => payload
+    case payload => payload.asInstanceOf[BSONDocument]
+  }
+
+  override def tags(payload: Any): Set[String] = super.tags(payload)
+
+  override def bsonToPayload(doc: BSONDocument): Any = adapter.fromJournal(doc, manifest) match {
+    case SingleEventSeq(event) => event
+    case EventsSeq(event :: _) => event
+    case e => throw new Exception(e.toString)
+  }
+
+  def newAkkaAdapter: akka.persistence.journal.EventAdapter = {
+    akkaAdapterClass.getConstructors.find(_.getParameterTypes sameElements Array(classOf[ExtendedActorSystem])) match {
+      case Some(constructor) => constructor.newInstance(system).asInstanceOf[AkkaEventAdapter]
+      case None => akkaAdapterClass.newInstance()
+    }
+  }
+}

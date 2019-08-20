@@ -38,7 +38,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
       actorRef ! Command("Command5")
       actorRef ! Command("Command6")
       actorRef ! Command("Command7")
-      receiveN(7, 7.seconds)
+      receiveN(7, 15.seconds)
 
       actorRef ! Command("get_state")
       expectMsg(Some("Command7"))
@@ -48,10 +48,10 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
       val persistId = randomId.toString
       val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
       actorRef ! MultiCommand("Action One", "Action Two", "Action Three")
-      receiveN(1, 7.seconds)
+      receiveN(1, 15.seconds)
       actorRef ! Kill
       actorRef ! Command("get_state")
-      expectMsg(7.seconds, Some("Action Three"))
+      expectMsg(15.seconds, Some("Action Three"))
     }
 
     "Recover Events" in {
@@ -59,27 +59,27 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
       val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
       actorRef ! Command("Event One")
       actorRef ! Command("Event Two")
-      receiveN(2, 7.seconds)
+      receiveN(2, 15.seconds)
       actorRef ! Kill
       actorRef ! Command("get_state")
-      expectMsg(7.seconds, Some("Event Two"))
+      expectMsg(15.seconds, Some("Event Two"))
     }
 
     "Delete events" in {
       val persistId = randomId.toString
       val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
       actorRef ! Command("get_state") //Will recover Nothing
-      expectMsg(7.seconds, None)
+      expectMsg(15.seconds, None)
 
       actorRef ! Command("Event One")
       actorRef ! Command("Event Two")
       Thread.sleep(1000) //Give some time to delete messages
       actorRef ! Command("delete")
-      receiveN(3, 7.seconds)
+      receiveN(3, 15.seconds)
       Thread.sleep(1000) //Give some time to delete messages
       actorRef ! Kill
       actorRef ! Command("get_state") //Will recover Nothing
-      expectMsg(7.seconds, None)
+      expectMsg(15.seconds, None)
 
     }
 
