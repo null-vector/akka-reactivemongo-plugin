@@ -2,10 +2,8 @@ package org.nullvector.query
 
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.persistence.query._
-import com.typesafe.config.Config
 
 object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProvider] with ExtensionIdProvider {
-  //val pluginId = "akka-persistence-reactivemongo.read-journal"
 
   override def lookup(): ExtensionId[_ <: Extension] = ReactiveMongoJournalProvider
 
