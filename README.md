@@ -68,7 +68,7 @@ akka-persistence-reactivemongo {
 Here are some examples of how to use persistence query:
 ```scala
 
-val readJournal = PersistenceQuery(system).readJournalFor[ReactiveMongoScalaReadJournal](ReactiveMongoJournalProvider.pluginId)
+val readJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
 
 val tagsSource: Source[EventEnvelope, NotUsed] = readJournal.currentEventsByTag("some_tag", NoOffset)
 

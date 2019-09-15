@@ -14,7 +14,7 @@ import scala.util.{Failure, Success, Try}
 
 object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with ExtensionIdProvider {
 
-  override def lookup(): ExtensionId[_ <: Extension] = ReactiveMongoEventSerializer
+  override def lookup(): ExtensionId[_ <: Extension] = ReactiveMongoDriver
 
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoDriver =
     new ReactiveMongoDriver(system)
@@ -61,8 +61,8 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   class Collections() extends Actor {
 
-    private val journalPrefix = "journal"
-    private val snapshotPrefix = "snapshot"
+    private val journalPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
+    private val snapshotPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
 
     private val nameMapping: CollectionNameMapping = system.getClass.getClassLoader.loadClass(

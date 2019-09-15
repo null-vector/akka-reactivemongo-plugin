@@ -35,8 +35,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
   }
 
   private implicit val materializer: ActorMaterializer = ActorMaterializer()
-  val readJournal: ReactiveMongoScalaReadJournal =
-    PersistenceQuery(system).readJournalFor[ReactiveMongoScalaReadJournal](ReactiveMongoJournalProvider.pluginId)
+  val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
 
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new SomeEventAdapter())
