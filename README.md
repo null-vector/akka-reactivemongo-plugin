@@ -10,6 +10,8 @@ This plugin support scala `2.12` and `2.13`, akka `2.5.23` and reactivemongo `0.
 Add in your `build.sbt` the following lines:
 ```scala
 resolvers += "Akka RactiveMongo Plugin" at "https://dl.bintray.com/null-vector/releases"
+or
+resolvers += Resolver.bintrayRepo("null-vector", "releases")
 
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.0"
 ```

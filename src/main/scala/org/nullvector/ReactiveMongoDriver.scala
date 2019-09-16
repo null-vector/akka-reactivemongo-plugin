@@ -5,7 +5,7 @@ import akka.util.Timeout
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.api.commands.CommandError
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
-import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
+import reactivemongo.api.{DefaultDB, MongoConnection, MongoConnectionOptions, MongoDriver}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -29,13 +29,13 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   private val database: DefaultDB = {
     val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
-    val parsedURI = MongoConnection.parseURI(mongoUri) match {
+    val parsedUri = MongoConnection.parseURI(mongoUri) match {
       case Success(_parsedURI) => _parsedURI
       case Failure(exception) => throw exception
     }
-    val databaseName = parsedURI.db.getOrElse(throw new Exception("Missing database name"))
+    val databaseName = parsedUri.db.getOrElse(throw new Exception("Missing database name"))
     Await.result(
-      MongoDriver(system.settings.config).connection(parsedURI, strictUri = true).get.database(databaseName),
+      MongoDriver(system.settings.config).connection(parsedUri, strictUri = false).get.database(databaseName),
       30.seconds
     )
   }
