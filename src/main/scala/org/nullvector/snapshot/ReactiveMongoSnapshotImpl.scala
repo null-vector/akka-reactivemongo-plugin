@@ -2,6 +2,7 @@ package org.nullvector.snapshot
 
 import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
 import org.nullvector.{Fields, ReactiveMongoPlugin}
+import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.bson.{BSONDocument, BSONValue}
 
 import scala.concurrent.Future
@@ -20,11 +21,14 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
       ), None)
         .one[BSONDocument]
       maybeSelected <- maybeDoc.map { doc =>
-        println(BSONDocument.pretty(doc))
         (doc.getAs[BSONValue](Fields.snapshot_payload_skull) match {
           case Some(snapshot) => Future.successful(snapshot)
-          case None =>
-            serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.payload).get)
+          case None => doc.getAs[String](Fields.manifest) match {
+            case Some(manifest) =>
+              serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.payload).get)
+            case None =>
+              Future.successful(doc.getAs[BSONValue](Fields.payload).get)
+          }
         })
           .map(snapshot =>
             Some(SelectedSnapshot(
@@ -41,17 +45,28 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
-    for {
-      collection <- rxDriver.snapshotCollection(metadata.persistenceId)
-      (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
-      _ <- collection.insert(false).one(BSONDocument(
-        Fields.persistenceId -> metadata.persistenceId,
-        Fields.sequence -> metadata.sequenceNr,
-        Fields.snapshot_ts -> metadata.timestamp,
-        Fields.payload -> rep.payload.asInstanceOf[BSONDocument],
-        Fields.manifest -> rep.manifest,
-      ))
-    } yield ()
+    rxDriver.snapshotCollection(metadata.persistenceId).flatMap { coll =>
+      snapshot match {
+        case payload: BSONValue =>
+          insertDoc(coll, metadata, payload, None).map(_ => ())
+        case _ =>
+          for {
+            (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
+            _ <- insertDoc(coll, metadata, rep.payload.asInstanceOf[BSONDocument], Option(rep.manifest))
+          } yield ()
+      }
+    }
+
+  }
+
+  private def insertDoc(collection: BSONCollection, metadata: SnapshotMetadata, payload: BSONValue, maybeManifest: Option[String]): Future[Any] = {
+    collection.insert(false).one(BSONDocument(
+      Fields.persistenceId -> metadata.persistenceId,
+      Fields.sequence -> metadata.sequenceNr,
+      Fields.snapshot_ts -> metadata.timestamp,
+      Fields.payload -> payload,
+      Fields.manifest -> maybeManifest,
+    ))
   }
 
   def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = {

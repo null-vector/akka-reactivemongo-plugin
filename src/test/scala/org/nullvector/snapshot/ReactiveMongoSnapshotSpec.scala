@@ -79,7 +79,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
 
 
-      snapshot.snapshot.asInstanceOf[AggregateState].age should be(78)
+      snapshot.snapshot.asInstanceOf[BSONDocument].getAs[String]("greeting").get should be("Hello World")
       snapshot.metadata.sequenceNr should be(333)
     }
 
