@@ -2,7 +2,7 @@ package org.nullvector.snapshot
 
 import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
 import org.nullvector.{Fields, ReactiveMongoPlugin}
-import reactivemongo.bson.BSONDocument
+import reactivemongo.bson.{BSONDocument, BSONValue}
 
 import scala.concurrent.Future
 
@@ -19,18 +19,24 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
         Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
       ), None)
         .one[BSONDocument]
-      maybeSelected <- maybeDoc.map(doc =>
-        serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.payload).get).map(event =>
-          Some(SelectedSnapshot(
-            SnapshotMetadata(
-              persistenceId,
-              doc.getAs[Long](Fields.sequence).get,
-              doc.getAs[Long](Fields.snapshot_ts).get,
-            ),
-            event
-          )
-        ))
-      ).getOrElse(Future.successful(None))
+      maybeSelected <- maybeDoc.map { doc =>
+        println(BSONDocument.pretty(doc))
+        (doc.getAs[BSONValue](Fields.snapshot_payload_skull) match {
+          case Some(snapshot) => Future.successful(snapshot)
+          case None =>
+            serializer.deserialize(doc.getAs[String](Fields.manifest).get, doc.getAs[BSONDocument](Fields.payload).get)
+        })
+          .map(snapshot =>
+            Some(SelectedSnapshot(
+              SnapshotMetadata(
+                persistenceId,
+                doc.getAs[Long](Fields.sequence).get,
+                doc.getAs[Long](Fields.snapshot_ts).get,
+              ),
+              snapshot
+            )
+            ))
+      }.getOrElse(Future.successful(None))
     } yield maybeSelected
   }
 

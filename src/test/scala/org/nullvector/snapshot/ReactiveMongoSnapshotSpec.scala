@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr, SnapshotMetadata, SnapshotSelectionCriteria}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
 
@@ -33,6 +33,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
   dropCollOf("TestAggregate-x")
 
   "ReactiveMongoSnapshotImpl" should {
+
     "write and load" in {
       val pId = s"TestAggregate-read_write"
 
@@ -43,11 +44,45 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
 
-      println(snapshot)
 
       snapshot.snapshot.asInstanceOf[AggregateState].age should be(78)
       snapshot.metadata.sequenceNr should be(333)
     }
+
+    "load skully snapshots" in {
+      val pId = "TestAggregate-skully"
+
+      val eventualInsert = ReactiveMongoDriver(system).snapshotCollection(pId).flatMap { col =>
+        col.insert(false).one(BSONDocument(
+          Fields.persistenceId -> pId,
+          Fields.sequence -> 38L,
+          Fields.snapshot_ts -> System.currentTimeMillis(),
+          Fields.snapshot_payload_skull -> BSONDocument("greeting" -> "Hello World"),
+          Fields.manifest -> Option[String](null),
+        ))
+      }
+
+      Await.result(eventualInsert, 2.seconds)
+
+      val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 2.seconds).get
+
+
+      snapshot.snapshot.asInstanceOf[BSONDocument].getAs[String]("greeting").get should be("Hello World")
+      snapshot.metadata.sequenceNr should be(38)
+    }
+
+    "write and load Bson docs" in {
+      val pId = s"TestAggregate-bson_doc"
+
+      Await.ready(snapshotter.saveAsync(SnapshotMetadata(pId, 333, new Date().getTime), BSONDocument("greeting" -> "Hello World")), 7.seconds)
+
+      val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
+
+
+      snapshot.snapshot.asInstanceOf[AggregateState].age should be(78)
+      snapshot.metadata.sequenceNr should be(333)
+    }
+
 
     "delete snapshot" in {
       val pId = s"TestAggregate-delete"
@@ -61,7 +96,6 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
 
-      println(snapshot)
 
       snapshot.snapshot.asInstanceOf[AggregateState].age should be(34)
       snapshot.metadata.sequenceNr should be(222)
@@ -82,7 +116,6 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
 
-      println(snapshot)
 
       snapshot.snapshot.asInstanceOf[AggregateState].age should be(23)
       snapshot.metadata.sequenceNr should be(111)
