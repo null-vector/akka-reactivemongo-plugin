@@ -1,25 +1,35 @@
 package org.nullvector.journal
 
 import akka.actor.ActorSystem
-import akka.persistence.{AtomicWrite, PersistentRepr}
+import akka.persistence.{AtomicWrite, PersistentRepr, SnapshotMetadata}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.nullvector.{EventAdapter, ReactiveMongoEventSerializer}
+import org.nullvector.snapshot.ReactiveMongoSnapshotImpl
+import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.BSONDocument
 
 import scala.collection.immutable
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.concurrent.duration._
 import scala.util.Random
 
 class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
 
+  private val conf: Config = ConfigFactory.load()
+  private implicit val ec: ExecutionContextExecutor = system.dispatcher
+
   val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl {
-    override val config: Config = ConfigFactory.load()
+    override val config: Config = conf
     override val actorSystem: ActorSystem = system
   }
+
+  private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl {
+    override val config: Config = conf
+    override val actorSystem: ActorSystem = system
+  }
+
 
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new ListAdapter())
@@ -51,6 +61,26 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22l)
 
       Await.result(eventualLong, 7.second) should be(25l)
+    }
+
+
+    "read max seqNr between Journal and Snapshot" in {
+      val persistenceId = "MaxSeqNr-0"
+      Await.result(ReactiveMongoDriver(system).journalCollection(persistenceId).map(_.drop(failIfNotFound = false)), 2.seconds)
+      Await.result(ReactiveMongoDriver(system).snapshotCollection(persistenceId).map(_.drop(failIfNotFound = false)), 2.seconds)
+
+      val events = immutable.Seq(
+        AtomicWrite(PersistentRepr(payload = "AnEvent", persistenceId = persistenceId, sequenceNr = 26)),
+        AtomicWrite(PersistentRepr(payload = "AnEvent", persistenceId = persistenceId, sequenceNr = 27))
+      )
+
+      Await.result(reactiveMongoJournalImpl.asyncWriteMessages(events), 1.second)
+      Await.result(reactiveMongoSnapshotImpl.saveAsync(SnapshotMetadata(persistenceId, 35), BSONDocument("greeting" -> "Hello")), 2.seconds)
+      Await.result(reactiveMongoSnapshotImpl.saveAsync(SnapshotMetadata(persistenceId, 36), BSONDocument("greeting" -> "Hello")), 2.seconds)
+
+      val eventualHighest = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(persistenceId, 0)
+
+      Await.result(eventualHighest, 2.seconds) shouldBe 36
     }
   }
 

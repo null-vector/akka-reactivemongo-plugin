@@ -49,7 +49,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
       snapshot.metadata.sequenceNr should be(333)
     }
 
-    "load skully snapshots" in {
+    "load legacy snapshots" in {
       val pId = "TestAggregate-skully"
 
       val eventualInsert = ReactiveMongoDriver(system).snapshotCollection(pId).flatMap { col =>
@@ -57,7 +57,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
           Fields.persistenceId -> pId,
           Fields.sequence -> 38L,
           Fields.snapshot_ts -> System.currentTimeMillis(),
-          Fields.snapshot_payload_skull -> BSONDocument("greeting" -> "Hello World"),
+          Fields.snapshot_payload -> BSONDocument("greeting" -> "Hello World"),
           Fields.manifest -> Option[String](null),
         ))
       }

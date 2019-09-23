@@ -1,10 +1,10 @@
 package org.nullvector.journal
 
-import org.nullvector.Fields
+import org.nullvector._
 import reactivemongo.bson.BSONDocument
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 trait ReactiveMongoAsyncDeleteMessages {
   this: ReactiveMongoJournalImpl =>
@@ -17,7 +17,7 @@ trait ReactiveMongoAsyncDeleteMessages {
           Fields.persistenceId -> persistenceId,
           Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr),
         ), None, None
-      ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => ())
+      ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
+    }.transform(_.flatMap(identity))
   }
 }

@@ -4,6 +4,7 @@ import java.util.Date
 
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import org.nullvector.Fields
+import org.nullvector._
 import reactivemongo.bson.{BSONDocument, BSONNull, BSONValue}
 
 import scala.concurrent.Future
@@ -30,11 +31,7 @@ trait ReactiveMongoAsyncWrite {
           )
         }
       }
-      results <- Future.traverse(atomicDocs) { doc =>
-        collection.insert(ordered = true).one(doc).map(result =>
-          if (result.ok) Success({}) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n")))
-        )
-      }
+      results <- Future.traverse(atomicDocs)(doc => collection.insert(ordered = true).one(doc): Future[Try[Unit]])
     } yield results
   }
 

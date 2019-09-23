@@ -11,5 +11,5 @@ object Fields {
   val manifest = "manifest"
   val tags = "_tg"
   val snapshot_ts = "ts"
-  val snapshot_payload_skull = "s2"
+  val snapshot_payload = "s2"
 }

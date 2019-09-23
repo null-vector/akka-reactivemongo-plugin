@@ -4,8 +4,9 @@ import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, Sna
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.bson.{BSONDocument, BSONValue}
-
+import org.nullvector._
 import scala.concurrent.Future
+import scala.util.Try
 
 trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
 
@@ -21,14 +22,13 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
       ), None)
         .one[BSONDocument]
       maybeSelected <- maybeDoc.map { doc =>
-        (doc.getAs[BSONValue](Fields.snapshot_payload_skull) match {
-          case Some(snapshot) => Future.successful(snapshot)
-          case None => doc.getAs[String](Fields.manifest) match {
-            case Some(manifest) =>
-              serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.payload).get)
-            case None =>
-              Future.successful(doc.getAs[BSONValue](Fields.payload).get)
-          }
+        val payloadDoc = (doc.getAs[BSONDocument](Fields.payload), doc.getAs[BSONDocument](Fields.snapshot_payload)) match {
+          case (Some(payloaDoc), None) => payloaDoc
+          case (None, Some(payloaDoc)) => payloaDoc
+        }
+        (doc.getAs[String](Fields.manifest) match {
+          case Some(manifest) => serializer.deserialize(manifest, payloadDoc)
+          case None => Future.successful(payloadDoc)
         })
           .map(snapshot =>
             Some(SelectedSnapshot(
@@ -46,25 +46,25 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
     rxDriver.snapshotCollection(metadata.persistenceId).flatMap { coll =>
-      snapshot match {
+      (snapshot match {
         case payload: BSONValue =>
-          insertDoc(coll, metadata, payload, None).map(_ => ())
+          insertDoc(coll, metadata, payload, None)
         case _ =>
           for {
             (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
-            _ <- insertDoc(coll, metadata, rep.payload.asInstanceOf[BSONDocument], Option(rep.manifest))
-          } yield ()
-      }
+            tryed <- insertDoc(coll, metadata, rep.payload.asInstanceOf[BSONDocument], Option(rep.manifest))
+          } yield tryed
+      }).transform(_.flatMap(identity))
     }
 
   }
 
-  private def insertDoc(collection: BSONCollection, metadata: SnapshotMetadata, payload: BSONValue, maybeManifest: Option[String]): Future[Any] = {
+  private def insertDoc(collection: BSONCollection, metadata: SnapshotMetadata, payload: BSONValue, maybeManifest: Option[String]): Future[Try[Unit]] = {
     collection.insert(false).one(BSONDocument(
       Fields.persistenceId -> metadata.persistenceId,
       Fields.sequence -> metadata.sequenceNr,
       Fields.snapshot_ts -> metadata.timestamp,
-      Fields.payload -> payload,
+      Fields.snapshot_payload -> payload,
       Fields.manifest -> maybeManifest,
     ))
   }
@@ -77,8 +77,8 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
           Fields.persistenceId -> metadata.persistenceId,
           Fields.sequence -> metadata.sequenceNr,
         ), None, None
-      ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => ())
+      ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
+    }.transform(_.flatMap(identity))
   }
 
   def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = {
@@ -90,7 +90,7 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
           Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
           Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
         ), None, None
-      ).flatMap(el => deleteBuilder.many(Seq(el)))
-    }.map(_ => ())
+      ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
+    }.transform(_.flatMap(identity))
   }
 }

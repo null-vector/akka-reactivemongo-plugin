@@ -5,7 +5,7 @@ import akka.util.Timeout
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.api.commands.CommandError
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
-import reactivemongo.api.{DefaultDB, MongoConnection, MongoConnectionOptions, MongoDriver}
+import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
