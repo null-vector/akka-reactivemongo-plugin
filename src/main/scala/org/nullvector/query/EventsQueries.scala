@@ -4,9 +4,11 @@ import akka.NotUsed
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.scaladsl.{Flow, Source}
 import org.nullvector.Fields
-import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson.{BSONDocument, BSONObjectID, BSONString}
 import reactivemongo.akkastream.cursorProducer
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+
+import scala.concurrent.Future
 
 trait EventsQueries
   extends akka.persistence.query.scaladsl.EventsByTagQuery
@@ -68,16 +70,18 @@ trait EventsQueries
     Flow[BSONDocument]
       .mapAsync(15) { doc =>
         val event = doc.getAs[BSONDocument](Fields.events).get
-        val manifest = event.getAs[String](Fields.manifest).get
-        serializer.deserialize(manifest, event.getAs[BSONDocument](Fields.payload).get)
-          .map(payload =>
-            EventEnvelope(
-              ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
-              event.getAs[String](Fields.persistenceId).get,
-              event.getAs[Long](Fields.sequence).get,
-              payload,
-            )
+        val rawPayload = event.getAs[BSONDocument](Fields.payload).get
+        (event.getAs[String](Fields.manifest).get match {
+          case Fields.manifest_doc => Future.successful(rawPayload)
+          case manifest => serializer.deserialize(manifest, rawPayload)
+        })
+        .map(payload => EventEnvelope(
+            ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
+            event.getAs[String](Fields.persistenceId).get,
+            event.getAs[Long](Fields.sequence).get,
+            payload,
           )
+        )
       }
   }
 

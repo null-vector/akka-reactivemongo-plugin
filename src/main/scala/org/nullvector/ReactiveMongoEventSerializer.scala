@@ -57,10 +57,10 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
     val eventTypesBindings = akkaAdaptersConfig.getConfig("event-adapter-bindings").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
-    val akkaAdapterClasses = akkaAdapters.mapValues(value => Class.forName(value).asInstanceOf[Class[AkkaEventAdapter]])
+    val akkaAdapterClasses = akkaAdapters.mapValues(value => system.dynamicAccess.getClassFor[Any](value).get.asInstanceOf[Class[AkkaEventAdapter]])
 
     val wrappers = eventTypesBindings
-      .map((t: (String, String)) => Class.forName(t._1) -> akkaAdapterClasses(t._2))
+      .map((t: (String, String)) => system.dynamicAccess.getClassFor[Any](t._1).get -> akkaAdapterClasses(t._2))
       .filterNot(_._1.isAssignableFrom(classOf[BSONDocument]))
       .map((c: (Class[_], Class[AkkaEventAdapter])) => c.copy(_2 = newAkkaAdapter(c._2))).toSeq
 

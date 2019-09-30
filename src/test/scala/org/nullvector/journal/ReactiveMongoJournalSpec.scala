@@ -10,6 +10,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.bson.BSONDocument
 
 import scala.collection.immutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.concurrent.duration._
 import scala.util.Random
@@ -37,6 +38,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
   serializer.addEventAdapter(new SomeAdapter())
 
   "ReactiveMongoJournalImpl" should {
+
     "asyncWriteMessages & asyncReadHighestSequenceNr" in {
 
       val pId = s"SomeCollection-${Random.nextLong().abs}"
@@ -61,6 +63,24 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22l)
 
       Await.result(eventualLong, 7.second) should be(25l)
+    }
+
+    "write BsonDocs" in {
+
+      val pId = s"SomeCollection-bson_${Random.nextLong().abs}"
+
+      val events = immutable.Seq(
+        AtomicWrite(PersistentRepr(BSONDocument("name" -> "John Coltrane"), persistenceId = pId, sequenceNr = 55)),
+      )
+
+      val eventualTriedUnits = reactiveMongoJournalImpl.asyncWriteMessages(events)
+      Await.result(eventualTriedUnits, 1.second)
+
+      val reps = ArrayBuffer[PersistentRepr]()
+      Await.result(reactiveMongoJournalImpl.asyncReplayMessages(pId, 0, 1000, 10000)(rep => reps += rep), 7.seconds)
+
+      reps.head.payload.asInstanceOf[BSONDocument].getAs[String]("name").get shouldBe "John Coltrane"
+      reps.head.sequenceNr shouldBe 55
     }
 
 

@@ -27,7 +27,11 @@ trait ReactiveMongoAsyncReplay {
         .mapConcat(_.getAs[Seq[BSONDocument]](Fields.events).get)
         .mapAsync(15) { doc =>
           val manifest = doc.getAs[String](Fields.manifest).get
-          serializer.deserialize(manifest, doc.getAs[BSONDocument](Fields.payload).get)
+          val rawPayload = doc.getAs[BSONDocument](Fields.payload).get
+          (manifest match {
+            case Fields.manifest_doc => Future.successful(rawPayload)
+            case manifest => serializer.deserialize(manifest, rawPayload)
+          })
             .map(payload =>
               PersistentRepr(
                 payload,
@@ -36,6 +40,7 @@ trait ReactiveMongoAsyncReplay {
                 manifest
               )
             )
+
         }
         .runForeach(recoveryCallback)
     }.map { _ => }

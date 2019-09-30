@@ -17,10 +17,13 @@ trait ReactiveMongoAsyncWrite {
     for {
       collection <- rxDriver.journalCollection(messages.head.persistenceId)
       atomicDocs <- Future.traverse(messages) { atomic =>
-        Future.traverse(atomic.payload) { rep =>
-          serializer.serialize(rep).map {
-            case (serializedRep, tags) => rep2doc(serializedRep, tags) -> tags
-          }
+        Future.traverse(atomic.payload) {
+          case rep if rep.payload.isInstanceOf[BSONDocument] =>
+            Future.successful(rep2doc(rep.withManifest(Fields.manifest_doc), Set.empty) -> Set.empty[String])
+          case rep =>
+            serializer.serialize(rep).map {
+              case (serializedRep, tags) => rep2doc(serializedRep, tags) -> tags
+            }
         }.map { docs =>
           BSONDocument(
             Fields.persistenceId -> atomic.persistenceId,

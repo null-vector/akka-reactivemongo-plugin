@@ -41,6 +41,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
   serializer.addEventAdapter(new SomeEventAdapter())
 
   "ReactiveMongoReadJournal" should {
+
     "Events by tag from NoOffset" in {
       val prefixReadColl = "ReadCollection"
 
@@ -72,6 +73,30 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       }
 
     }
+
+    "current events by persistence id" in {
+      val pId = "ReadCollection-currentByPersistenceId"
+
+      dropAll()
+
+      Await.result({
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).map(jdx =>
+          AtomicWrite(PersistentRepr(payload = BSONDocument("test" -> "test"), persistenceId = pId, sequenceNr = jdx))
+        ))
+      }, 7.second)
+
+      {
+        val eventualDone = readJournal.currentEventsByPersistenceId(pId, 0, 10000).runWith(Sink.seq)
+        println(System.currentTimeMillis())
+        val envelopes = Await.result(eventualDone, 1.seconds)
+        println(System.currentTimeMillis())
+        envelopes.size shouldBe 50
+        envelopes.head.event.isInstanceOf[BSONDocument] shouldBe true
+        envelopes.head.event.asInstanceOf[BSONDocument].getAs[String]("test").get shouldBe "test"
+      }
+
+    }
+
 
     "Events by tag from a given Offset" in {
       val prefixReadColl = "ReadCollection"

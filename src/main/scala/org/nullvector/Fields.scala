@@ -12,4 +12,5 @@ object Fields {
   val tags = "_tg"
   val snapshot_ts = "ts"
   val snapshot_payload = "s2"
+  val manifest_doc = "__doc__"
 }
