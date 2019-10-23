@@ -68,7 +68,7 @@ trait EventsQueries
 
   private def document2Envelope: Flow[BSONDocument, EventEnvelope, NotUsed] = {
     Flow[BSONDocument]
-      .mapAsync(15) { doc =>
+      .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
         val event = doc.getAs[BSONDocument](Fields.events).get
         val rawPayload = event.getAs[BSONDocument](Fields.payload).get
         (event.getAs[String](Fields.manifest).get match {

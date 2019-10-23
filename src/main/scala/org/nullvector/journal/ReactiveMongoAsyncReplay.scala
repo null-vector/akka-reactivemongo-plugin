@@ -25,7 +25,7 @@ trait ReactiveMongoAsyncReplay {
         .cursor[BSONDocument]()
         .documentSource()
         .mapConcat(_.getAs[Seq[BSONDocument]](Fields.events).get)
-        .mapAsync(15) { doc =>
+        .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
           val manifest = doc.getAs[String](Fields.manifest).get
           val rawPayload = doc.getAs[BSONDocument](Fields.payload).get
           (manifest match {

@@ -9,10 +9,10 @@ trait ReactiveMongoHighestSequence {
   this: ReactiveMongoJournalImpl =>
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
-    Future.sequence(List(
-      journalMaxSnFrom(persistenceId, fromSequenceNr),
-      snapshotMaxSnFrom(persistenceId)
-    )).map(_.max)
+    for {
+      journalSn <- journalMaxSnFrom(persistenceId, fromSequenceNr)
+      snapshotSn <- snapshotMaxSnFrom(persistenceId)
+    } yield List(journalSn, snapshotSn).max
   }
 
   private def journalMaxSnFrom(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
@@ -25,6 +25,7 @@ trait ReactiveMongoHighestSequence {
         .map(_.map(_.getAs[Long](Fields.to_sn).get).getOrElse(0L))
     }
   }
+
   private def snapshotMaxSnFrom(persistenceId: String): Future[Long] = {
     rxDriver.snapshotCollection(persistenceId).flatMap { collection =>
       collection.find(BSONDocument(
