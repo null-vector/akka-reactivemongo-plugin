@@ -2,17 +2,11 @@ package org.nullvector.query
 
 import java.util.concurrent.TimeUnit
 
-import akka.NotUsed
-import akka.actor.{ActorSystem, ExtendedActorSystem}
-import akka.persistence.query.{EventEnvelope, NoOffset, Offset, PersistenceQuery}
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.actor.ExtendedActorSystem
+import akka.persistence.query.{NoOffset, Offset}
 import akka.stream.{ActorMaterializer, Materializer}
-import com.typesafe.config.Config
-import org.nullvector.{Fields, ReactiveMongoDriver, ReactiveMongoEventSerializer}
-import org.reactivestreams.Subscriber
-import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson.{BSONDocument, BSONObjectID}
-import reactivemongo.akkastream.cursorProducer
+import org.nullvector.{ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import reactivemongo.api.bson._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

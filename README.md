@@ -5,7 +5,7 @@
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin support scala `2.12` and `2.13`, akka `2.5.23` and reactivemongo `0.18.3`.
+This plugin support scala `2.12` and `2.13`, akka `2.5.23` and reactivemongo `0.18.x` and `0.19.x`.
 
 Add in your `build.sbt` the following lines:
 ```scala
@@ -13,8 +13,17 @@ resolvers += "Akka RactiveMongo Plugin" at "https://dl.bintray.com/null-vector/r
 or
 resolvers += Resolver.bintrayRepo("null-vector", "releases")
 
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.0"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.6"
 ```
+For reactivemongo `0.18.x` use:
+```scala
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.6"
+```
+For reactivemongo `0.19.x` use:
+```scala
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.0"
+```
+
 
 ## Configuration
 To active the plugin an set the mongodb uri you have to add in your application.conf the following lines:

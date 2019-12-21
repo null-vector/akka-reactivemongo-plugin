@@ -1,7 +1,7 @@
 package org.nullvector.journal
 
 import org.nullvector.Fields
-import reactivemongo.bson.{BSONDocument, BSONString}
+import reactivemongo.api.bson._
 
 import scala.concurrent.Future
 
@@ -22,7 +22,7 @@ trait ReactiveMongoHighestSequence {
         Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
       ), Some(BSONDocument(Fields.to_sn -> 1)))
         .one[BSONDocument]
-        .map(_.map(_.getAs[Long](Fields.to_sn).get).getOrElse(0L))
+        .map(_.map(_.getAsOpt[Long](Fields.to_sn).get).getOrElse(0L))
     }
   }
 
@@ -32,7 +32,7 @@ trait ReactiveMongoHighestSequence {
         Fields.persistenceId -> persistenceId,
       ), Some(BSONDocument(Fields.sequence -> 1)))
         .one[BSONDocument]
-        .map(_.map(_.getAs[Long](Fields.sequence).get).getOrElse(0L))
+        .map(_.map(_.getAsOpt[Long](Fields.sequence).get).getOrElse(0L))
     }
   }
 }

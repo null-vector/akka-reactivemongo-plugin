@@ -6,7 +6,7 @@ import akka.persistence.journal.Tagged
 import akka.testkit.{ImplicitSender, TestKit}
 import org.nullvector.{EventAdapter, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
+import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
 
 import scala.collection.immutable._
@@ -141,9 +141,9 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
     private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
 
-    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.write(payload)
+    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.writeTry(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.read(doc)
+    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.readDocument(doc).get
   }
 
 }

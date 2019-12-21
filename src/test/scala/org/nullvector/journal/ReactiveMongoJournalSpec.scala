@@ -7,12 +7,12 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.snapshot.ReactiveMongoSnapshotImpl
 import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import reactivemongo.bson.BSONDocument
+import reactivemongo.api.bson._
 
 import scala.collection.immutable
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Random
 
 class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
@@ -79,10 +79,9 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val reps = ArrayBuffer[PersistentRepr]()
       Await.result(reactiveMongoJournalImpl.asyncReplayMessages(pId, 0, 1000, 10000)(rep => reps += rep), 7.seconds)
 
-      reps.head.payload.asInstanceOf[BSONDocument].getAs[String]("name").get shouldBe "John Coltrane"
+      reps.head.payload.asInstanceOf[BSONDocument].getAsOpt[String]("name").get shouldBe "John Coltrane"
       reps.head.sequenceNr shouldBe 55
     }
-
 
     "read max seqNr between Journal and Snapshot" in {
       val persistenceId = "MaxSeqNr-0"

@@ -1,16 +1,16 @@
 lazy val scala212 = "2.12.9"
 lazy val scala213 = "2.13.1"
 lazy val supportedScalaVersions = List(scala212, scala213)
-lazy val akkaVersion = "2.5.26"
-lazy val rxmongoVersion = "0.18.7"
+lazy val akkaVersion = "2.6.1"
+lazy val rxmongoVersion = "0.19.5"
 
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
-version := "1.2.6"
+version := "1.3.0"
 scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
 
-resolvers += "Akka Maven Repository" at "http://akka.io/repository"
+resolvers += "Akka Maven Repository" at "https://akka.io/repository"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion

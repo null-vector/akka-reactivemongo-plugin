@@ -3,7 +3,7 @@ package org.nullvector.queries
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import akka.actor.ActorSystem
-import akka.persistence.query.{EventEnvelope, NoOffset, PersistenceQuery}
+import akka.persistence.query.{EventEnvelope, NoOffset}
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
@@ -14,7 +14,7 @@ import org.nullvector.journal.ReactiveMongoJournalImpl
 import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
 import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
+import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -92,7 +92,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         envelopes.size shouldBe 50
         envelopes.head.event.isInstanceOf[BSONDocument] shouldBe true
-        envelopes.head.event.asInstanceOf[BSONDocument].getAs[String]("test").get shouldBe "test"
+        envelopes.head.event.asInstanceOf[BSONDocument].getAsOpt[String]("test").get shouldBe "test"
       }
 
     }
@@ -323,9 +323,9 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       case _ => Set.empty
     }
 
-    override def payloadToBson(payload: SomeEvent): BSONDocument = r.write(payload)
+    override def payloadToBson(payload: SomeEvent): BSONDocument = r.writeTry(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): SomeEvent = r.read(doc)
+    override def bsonToPayload(doc: BSONDocument): SomeEvent = r.readDocument(doc).get
   }
 
 }

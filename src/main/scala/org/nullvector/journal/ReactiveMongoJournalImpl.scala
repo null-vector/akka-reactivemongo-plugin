@@ -1,11 +1,6 @@
 package org.nullvector.journal
 
-import akka.actor.ActorSystem
-import com.typesafe.config.Config
-import org.nullvector.{ReactiveMongoDriver, ReactiveMongoEventSerializer, ReactiveMongoPlugin}
-
-import scala.collection.immutable
-import scala.concurrent.ExecutionContext
+import org.nullvector.ReactiveMongoPlugin
 
 trait ReactiveMongoJournalImpl extends ReactiveMongoPlugin
   with ReactiveMongoAsyncWrite

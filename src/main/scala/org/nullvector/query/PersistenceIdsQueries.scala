@@ -5,9 +5,8 @@ import akka.persistence.query.{NoOffset, Offset}
 import akka.stream.scaladsl.Source
 import org.nullvector.Fields
 import org.nullvector.query.PersistenceIdsQueries.PersistenceId
-import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson.{BSONDocument, BSONObjectID}
-import reactivemongo.akkastream.{State, cursorProducer}
+import reactivemongo.api.bson._
+import reactivemongo.akkastream._
 
 import scala.concurrent.Future
 
@@ -47,13 +46,13 @@ trait PersistenceIdsQueries
       .mergeSubstreamsWithParallelism(100)
   }
 
-  private def buildFindAllIds(collection: BSONCollection, offset: Offset): Source[PersistenceId, Future[State]] = {
-    collection
+  private def buildFindAllIds(coll: collection.BSONCollection, offset: Offset): Source[PersistenceId, Future[State]] = {
+    coll
       .find(BSONDocument(Fields.from_sn -> 1L) ++ filterByOffset(offset), None)
       .sort(BSONDocument("_id" -> 1))
       .cursor[BSONDocument]()
       .documentSource()
-      .map(doc => PersistenceId(doc.getAs[String](Fields.persistenceId).get, ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get)))
+      .map(doc => PersistenceId(doc.getAsOpt[String](Fields.persistenceId).get, ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)))
   }
 
 }

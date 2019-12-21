@@ -1,7 +1,7 @@
 package org.nullvector.journal
 
 import org.nullvector._
-import reactivemongo.bson.BSONDocument
+import reactivemongo.api.bson.BSONDocument
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}

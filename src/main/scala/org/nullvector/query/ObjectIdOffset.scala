@@ -2,7 +2,7 @@ package org.nullvector.query
 
 import akka.persistence.query.Offset
 import org.joda.time.DateTime
-import reactivemongo.bson.BSONObjectID
+import reactivemongo.api.bson.BSONObjectID
 
 object ObjectIdOffset {
   def apply(dateTime: DateTime): ObjectIdOffset = {

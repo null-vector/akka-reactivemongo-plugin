@@ -2,7 +2,8 @@ package org.nullvector
 
 import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
-import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.api.bson.BSONDocument
+import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandError
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
 import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
@@ -112,10 +113,19 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
     private def createPidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
       val indexName = "pid_seq"
-      val index = Index(Seq(
-        Fields.persistenceId -> IndexType.Ascending,
-        Fields.to_sn -> IndexType.Descending
-      ), Some(indexName), unique = true)
+      val index = Index(BSONSerializationPack)(
+        Seq(
+          Fields.persistenceId -> IndexType.Ascending,
+          Fields.to_sn -> IndexType.Descending
+        ),
+        Some(indexName),
+        unique = true,
+        background = true,
+        dropDups = false,
+        sparse = false,
+        None,
+        None,
+        BSONDocument.empty)
       indexesManager.create(index).map(_ => ())
     }
 

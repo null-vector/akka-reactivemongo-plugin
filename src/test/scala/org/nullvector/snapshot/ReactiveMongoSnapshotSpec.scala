@@ -3,17 +3,15 @@ package org.nullvector.snapshot
 import java.util.Date
 
 import akka.actor.ActorSystem
-import akka.persistence.{AtomicWrite, PersistentRepr, SnapshotMetadata, SnapshotSelectionCriteria}
+import akka.persistence.{SnapshotMetadata, SnapshotSelectionCriteria}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
+import reactivemongo.api.bson.{BSONDocument, Macros}
 
-import scala.collection.immutable
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.Random
 
 class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
@@ -67,7 +65,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 2.seconds).get
 
 
-      snapshot.snapshot.asInstanceOf[BSONDocument].getAs[String]("greeting").get should be("Hello World")
+      snapshot.snapshot.asInstanceOf[BSONDocument].getAsOpt[String]("greeting").get should be("Hello World")
       snapshot.metadata.sequenceNr should be(38)
     }
 
@@ -79,7 +77,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
 
 
-      snapshot.snapshot.asInstanceOf[BSONDocument].getAs[String]("greeting").get should be("Hello World")
+      snapshot.snapshot.asInstanceOf[BSONDocument].getAsOpt[String]("greeting").get should be("Hello World")
       snapshot.metadata.sequenceNr should be(333)
     }
 
@@ -142,9 +140,9 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
     private val handle = Macros.handler[AggregateState]
 
-    override def payloadToBson(payload: AggregateState): BSONDocument = handle.write(payload)
+    override def payloadToBson(payload: AggregateState): BSONDocument = handle.writeTry(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): AggregateState = handle.read(doc)
+    override def bsonToPayload(doc: BSONDocument): AggregateState = handle.readDocument(doc).get
   }
 
 }

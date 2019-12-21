@@ -1,18 +1,16 @@
 package org.nullvector
 
-import akka.actor.{ActorRef, ActorSystem, ExtendedActorSystem, Kill, Props}
+import akka.actor.{ActorRef, ActorSystem, ExtendedActorSystem}
+import akka.persistence.PersistentRepr
 import akka.persistence.journal.{EventSeq, Tagged}
-import akka.persistence.{PersistentActor, PersistentRepr}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.nullvector.EventSerializerSpec.{AnEvent, AnEventEventAdapter, OtherLegacyEvent, SomeLegacyEvent}
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers, WordSpecLike}
-import reactivemongo.bson.{BSONDocument, BSONDocumentHandler, Macros}
-import util.AutoRestartFactory
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler, Macros}
 
 import scala.collection.immutable._
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.Random
 
 class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
   with FlatSpecLike with Matchers with BeforeAndAfterAll {
@@ -27,7 +25,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     val eventualTuple = serializer.serialize(PersistentReprProbe(AnEvent("Hello World"), "AnEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
-    document.getAs[String]("string").get shouldBe ("Hello World")
+    document.getAsOpt[String]("string").get shouldBe ("Hello World")
   }
 
   it should "dserialize an Event" in {
@@ -41,8 +39,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     val eventualTuple = serializer.serialize(PersistentReprProbe(SomeLegacyEvent("John", "Coltrane"), "SomeLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
-    document.getAs[String]("firstName").get shouldBe ("John")
-    document.getAs[String]("lastName").get shouldBe ("Coltrane")
+    document.getAsOpt[String]("firstName").get shouldBe ("John")
+    document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")
   }
 
   it should "dserialize an AkkaEvent" in {
@@ -65,8 +63,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     val eventualTuple = serializer.serialize(PersistentReprProbe(OtherLegacyEvent("John", "Coltrane"), "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
-    document.getAs[String]("firstName").get shouldBe ("John")
-    document.getAs[String]("lastName").get shouldBe ("Coltrane")
+    document.getAsOpt[String]("firstName").get shouldBe ("John")
+    document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")
   }
 
   it should "try to dserialize with non registered adapter" in {
@@ -77,8 +75,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   it should "serialize other AkkaEvent with Tag" in {
     val eventualTuple = serializer.serialize(PersistentReprProbe(Tagged(OtherLegacyEvent("John", "Coltrane"), Set("tag")), "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
-    document.getAs[String]("firstName").get shouldBe ("John")
-    document.getAs[String]("lastName").get shouldBe ("Coltrane")
+    document.getAsOpt[String]("firstName").get shouldBe ("John")
+    document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")
 
   }
 
@@ -127,9 +125,9 @@ object EventSerializerSpec {
 
     private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
 
-    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.write(payload)
+    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.writeTry(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.read(doc)
+    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.readDocument(doc).get
   }
 
   class SomeAkkaEventAdapter(system: ExtendedActorSystem) extends akka.persistence.journal.EventAdapter {
@@ -137,30 +135,30 @@ object EventSerializerSpec {
 
     override def fromJournal(event: Any, manifest: String): EventSeq = {
       val document = event.asInstanceOf[BSONDocument]
-      EventSeq.single(mapper.read(document))
+      EventSeq.single(mapper.readDocument(document).get)
     }
 
     override def manifest(event: Any): String = "SomeLegacyEvent"
 
     override def toJournal(event: Any): Any = {
       val legacyEvent = event.asInstanceOf[SomeLegacyEvent]
-      mapper.write(legacyEvent)
+      mapper.writeTry(legacyEvent).get
     }
   }
 
   class OtherAkkaEventAdapter() extends akka.persistence.journal.EventAdapter {
-    private val mapper: BSONDocumentHandler[OtherLegacyEvent] = Macros.handler[OtherLegacyEvent]
+    private implicit val mapper: BSONDocumentHandler[OtherLegacyEvent] = Macros.handler[OtherLegacyEvent]
 
     override def fromJournal(event: Any, manifest: String): EventSeq = {
       val document = event.asInstanceOf[BSONDocument]
-      EventSeq.single(mapper.read(document))
+      EventSeq.single(BSON.read(document).get)
     }
 
     override def manifest(event: Any): String = "OtherLegacyEvent"
 
     override def toJournal(event: Any): Any = {
       val legacyEvent = event.asInstanceOf[OtherLegacyEvent]
-      mapper.write(legacyEvent)
+      mapper.writeTry(legacyEvent).get
     }
   }
 

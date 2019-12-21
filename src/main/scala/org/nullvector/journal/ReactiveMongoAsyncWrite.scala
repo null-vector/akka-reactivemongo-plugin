@@ -3,12 +3,11 @@ package org.nullvector.journal
 import java.util.Date
 
 import akka.persistence.{AtomicWrite, PersistentRepr}
-import org.nullvector.Fields
-import org.nullvector._
-import reactivemongo.bson.{BSONDocument, BSONNull, BSONValue}
+import org.nullvector.{Fields, _}
+import reactivemongo.api.bson._
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 trait ReactiveMongoAsyncWrite {
   this: ReactiveMongoJournalImpl =>
@@ -43,7 +42,7 @@ trait ReactiveMongoAsyncWrite {
     Fields.sequence -> persistentRepr.sequenceNr,
     Fields.payload -> persistentRepr.payload.asInstanceOf[BSONDocument],
     Fields.manifest -> persistentRepr.manifest,
-    Fields.event_ts -> new Date(),
+    Fields.event_ts -> System.currentTimeMillis(),
     Fields.tags -> tagsToOption(tags)
   )
 

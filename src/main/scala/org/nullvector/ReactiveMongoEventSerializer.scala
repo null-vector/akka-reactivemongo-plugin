@@ -2,8 +2,8 @@ package org.nullvector
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.persistence._
-import akka.persistence.journal.{EmptyEventSeq, EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
-import reactivemongo.bson.BSONDocument
+import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
+import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
