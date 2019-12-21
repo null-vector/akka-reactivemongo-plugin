@@ -25,7 +25,7 @@ class ReactiveMongoScalaReadJournal(system: ExtendedActorSystem)
   protected lazy val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system)
   protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
   protected implicit lazy val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
-  protected implicit lazy val materializer: Materializer = ActorMaterializer()(system)
+  protected implicit lazy val materializer: Materializer = Materializer.matFromSystem(system)
 
   protected val defaultRefreshInterval: FiniteDuration =
     system.settings.config.getDuration("akka-persistence-reactivemongo.read-journal.refresh-interval", TimeUnit.MILLISECONDS).millis

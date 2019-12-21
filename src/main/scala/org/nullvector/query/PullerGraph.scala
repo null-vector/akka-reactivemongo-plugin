@@ -33,13 +33,10 @@ class PullerGraph[D, O](
     setHandler(outlet, new OutHandler {
       override def onPull(): Unit = {}
 
-      override def onDownstreamFinish(): Unit = {
-        cancelTimer("timer")
-      }
-
+      override def onDownstreamFinish(cause: Throwable): Unit = cancelTimer("timer")
     })
 
-    override def preStart(): Unit = schedulePeriodicallyWithInitialDelay("timer", effectiveRefreshInterval, effectiveRefreshInterval)
+    override def preStart(): Unit = scheduleWithFixedDelay("timer", effectiveRefreshInterval, effectiveRefreshInterval)
 
     override protected def onTimer(timerKey: Any): Unit = {
       if (isAvailable(outlet) && !eventStreamConsuming) {

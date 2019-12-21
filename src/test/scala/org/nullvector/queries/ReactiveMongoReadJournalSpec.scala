@@ -3,9 +3,9 @@ package org.nullvector.queries
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import akka.actor.ActorSystem
-import akka.persistence.query.{EventEnvelope, NoOffset, PersistenceQuery}
+import akka.persistence.query.{EventEnvelope, NoOffset}
 import akka.persistence.{AtomicWrite, PersistentRepr}
-import akka.stream.ActorMaterializer
+import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
@@ -34,7 +34,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     override val actorSystem: ActorSystem = system
   }
 
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  private implicit val materializer: Materializer = Materializer.matFromSystem(system)
   val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
 
   private val serializer = ReactiveMongoEventSerializer(system)
@@ -299,7 +299,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     Await.ready(dropForTest, 7.seconds)
   }
 
-  override def afterAll {
+  override def afterAll: Unit = {
     shutdown()
   }
 

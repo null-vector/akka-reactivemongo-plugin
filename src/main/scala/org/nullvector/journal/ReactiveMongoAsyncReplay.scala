@@ -11,7 +11,7 @@ import scala.concurrent.Future
 trait ReactiveMongoAsyncReplay {
   this: ReactiveMongoJournalImpl =>
 
-  implicit lazy val materializer: Materializer = ActorMaterializer()(actorSystem)
+  private implicit lazy val mat: Materializer = Materializer.matFromSystem(actorSystem)
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {

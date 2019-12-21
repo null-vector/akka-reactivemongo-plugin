@@ -40,7 +40,7 @@ trait PersistenceIdsQueries
   }
 
   def currentPersistenceIds(offset: Offset): Source[PersistenceId, NotUsed] = {
-    Source.fromFuture(rxDriver.journals())
+    Source.future(rxDriver.journals())
       .mapConcat(identity)
       .groupBy(100, _.name)
       .flatMapConcat(coll => buildFindAllIds(coll, offset))

@@ -85,7 +85,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
   }
 
-  override def afterAll {
+  override def afterAll: Unit = {
     shutdown()
   }
 
