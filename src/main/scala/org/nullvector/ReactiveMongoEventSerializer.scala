@@ -2,7 +2,7 @@ package org.nullvector
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.persistence._
-import akka.persistence.journal.{EmptyEventSeq, EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
+import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
 import reactivemongo.bson.BSONDocument
 
 import scala.collection.immutable
@@ -41,7 +41,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     val promise = Promise[Any]
     adapterRegistryRef ! Deserialize(manifest, event, promise)
     promise.future
-
   }
 
   def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = adapterRegistryRef ! RegisterAdapter(eventAdapter)
@@ -50,14 +49,14 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     adapterRegistryRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
 
   def loadAkkaAdaptersFrom(path: String): Unit = {
-    import scala.jdk.CollectionConverters._
+    import scala.collection.JavaConverters._
 
     val akkaAdaptersConfig = system.settings.config.getConfig(path)
     val akkaAdapters = akkaAdaptersConfig.getConfig("event-adapters").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
     val eventTypesBindings = akkaAdaptersConfig.getConfig("event-adapter-bindings").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
-    val akkaAdapterClasses = akkaAdapters.view.mapValues(value => system.dynamicAccess.getClassFor[Any](value).get.asInstanceOf[Class[AkkaEventAdapter]])
+    val akkaAdapterClasses = akkaAdapters.mapValues(value => system.dynamicAccess.getClassFor[Any](value).get.asInstanceOf[Class[AkkaEventAdapter]])
 
     val wrappers = eventTypesBindings
       .map((t: (String, String)) => system.dynamicAccess.getClassFor[Any](t._1).get -> akkaAdapterClasses(t._2))

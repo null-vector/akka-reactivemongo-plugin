@@ -10,17 +10,15 @@ version := "1.2.7"
 scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
 scalacOptions ++= Seq(
-  "-Xfatal-warnings",  // New lines for each options
+//  "-Xfatal-warnings",  // New lines for each options
   "-deprecation",
   "-feature",
   "-language:implicitConversions",
 )
-resolvers += "Akka Maven Repository" at "http://akka.io/repository"
+resolvers += "Akka Maven Repository" at "https://akka.io/repository"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion
-libraryDependencies += "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
-libraryDependencies += "com.typesafe.akka" %% "akka-cluster-tools" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion
 
@@ -37,3 +35,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Tes
 licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
 
 coverageExcludedPackages := "<empty>;.*ReactiveMongoJavaReadJournal.*"
+
+Test / fork := true
+Test / javaOptions += "-Xmx4G"
+Test / javaOptions += "-XX:+CMSClassUnloadingEnabled"
+Test / javaOptions += "-XX:+UseConcMarkSweepGC"
+Test / javaOptions += "-Dfile.encoding=UTF-8"

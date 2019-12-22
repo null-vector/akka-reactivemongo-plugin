@@ -34,7 +34,8 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     override val actorSystem: ActorSystem = system
   }
 
-  private implicit val materializer: Materializer = Materializer.matFromSystem(system)
+  private implicit val
+  materializer: Materializer = Materializer.matFromSystem(system)
   val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
 
   private val serializer = ReactiveMongoEventSerializer(system)
@@ -53,7 +54,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           AtomicWrite(group.map(jdx =>
             PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
           ))
-        ).toSeq)
+        ).toList)
       }), 7.second)
 
       {
