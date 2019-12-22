@@ -40,7 +40,7 @@ trait EventsQueries
 
   override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
     Source
-      .fromFuture(rxDriver.journalCollection(persistenceId))
+      .future(rxDriver.journalCollection(persistenceId))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
       .via(document2Envelope)
   }
@@ -57,7 +57,7 @@ trait EventsQueries
 
 
   def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source.fromFuture(rxDriver.journals())
+    Source.future(rxDriver.journals())
       .mapConcat(identity)
       .groupBy(100, _.name)
       .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))

@@ -41,7 +41,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     val promise = Promise[Any]
     adapterRegistryRef ! Deserialize(manifest, event, promise)
     promise.future
-
   }
 
   def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = adapterRegistryRef ! RegisterAdapter(eventAdapter)

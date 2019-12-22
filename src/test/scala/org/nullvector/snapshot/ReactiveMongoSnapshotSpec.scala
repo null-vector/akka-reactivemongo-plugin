@@ -121,7 +121,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
   }
 
-  override def afterAll {
+  override def afterAll: Unit = {
     shutdown()
   }
 

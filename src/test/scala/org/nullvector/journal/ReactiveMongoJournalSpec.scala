@@ -60,9 +60,9 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       val eventualTriedUnits = reactiveMongoJournalImpl.asyncWriteMessages(events)
       Await.result(eventualTriedUnits, 1.second)
 
-      val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22l)
+      val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22)
 
-      Await.result(eventualLong, 7.second) should be(25l)
+      Await.result(eventualLong, 7.second) should be(25)
     }
 
     "write BsonDocs" in {
@@ -103,7 +103,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
     }
   }
 
-  override def afterAll {
+  override def afterAll: Unit = {
     shutdown()
   }
 

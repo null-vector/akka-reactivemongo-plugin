@@ -24,8 +24,9 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
 
       maybeSelected <- maybeDoc.map { doc =>
         val payloadDoc = (doc.getAsOpt[BSONDocument](Fields.payload), doc.getAsOpt[BSONDocument](Fields.snapshot_payload)) match {
-          case (Some(payloaDoc), None) => payloaDoc
-          case (None, Some(payloaDoc)) => payloaDoc
+          case (Some(payloaDoc), _) => payloaDoc
+          case (_, Some(payloaDoc)) => payloaDoc
+          case _ => throw new Exception("No payload found")
         }
         (doc.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) => serializer.deserialize(manifest, payloadDoc)
