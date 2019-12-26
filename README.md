@@ -13,7 +13,7 @@ resolvers += "Akka RactiveMongo Plugin" at "https://dl.bintray.com/null-vector/r
 or
 resolvers += Resolver.bintrayRepo("null-vector", "releases")
 
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.7"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.8"
 ```
 
 ## Configuration
