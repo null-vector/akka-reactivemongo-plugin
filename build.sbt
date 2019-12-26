@@ -6,7 +6,7 @@ lazy val rxmongoVersion = "0.18.8"
 
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
-version := "1.2.7"
+version := "1.2.8"
 scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
 scalacOptions ++= Seq(
@@ -32,7 +32,7 @@ libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmon
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 
-licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
 
 coverageExcludedPackages := "<empty>;.*ReactiveMongoJavaReadJournal.*"
 
