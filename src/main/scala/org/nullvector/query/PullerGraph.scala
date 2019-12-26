@@ -28,7 +28,8 @@ class PullerGraph[D, O](
     var currentOffset: O = initialOffset
     var eventStreamConsuming = false
 
-    private val updateConsumingState = createAsyncCallback[Boolean](consumingState => eventStreamConsuming = consumingState)
+    private val updateConsumingState: AsyncCallback[Boolean] = createAsyncCallback[Boolean](eventStreamConsuming = _)
+    private val updateCurrentOffset: AsyncCallback[O] = createAsyncCallback[O](currentOffset = _)
 
     setHandler(outlet, new OutHandler {
       override def onPull(): Unit = {}
@@ -42,7 +43,7 @@ class PullerGraph[D, O](
       if (isAvailable(outlet) && !eventStreamConsuming) {
         eventStreamConsuming = true
         push(outlet, nextChunk(currentOffset).map { entry =>
-          currentOffset = graterOf(currentOffset, offsetOf(entry))
+          updateCurrentOffset.invoke(graterOf(currentOffset, offsetOf(entry)))
           entry
         }
           .watchTermination() { (_, future) =>

@@ -136,7 +136,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
 
-      readJournal.eventsByTag("event_tag_1", NoOffset).runWith(Sink.foreach(e => envelopes.add(e))).recover {
+      readJournal.eventsByTag("event_tag_1", NoOffset).async.runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
 
@@ -172,6 +172,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       readJournal
         .eventsByTag("event_tag_1", NoOffset)
+        .async
         .addAttributes(RefreshInterval(700.millis))
         .runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
@@ -179,6 +180,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       readJournal
         .eventsByTag("some_tag", NoOffset)
+        .async
         .addAttributes(RefreshInterval(700.millis))
         .runWith(Sink.foreach(println))
 
@@ -213,7 +215,10 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
 
       val pId = s"$prefixReadColl-123"
-      readJournal.eventsByPersistenceId(pId, 0L, Long.MaxValue).runWith(Sink.foreach(e => envelopes.add(e))).recover {
+      readJournal
+        .eventsByPersistenceId(pId, 0L, Long.MaxValue)
+        .async
+        .runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
 
@@ -246,7 +251,10 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       val ids = new ConcurrentLinkedQueue[String]()
 
-      readJournal.persistenceIds().runWith(Sink.foreach(e => ids.add(e))).recover {
+      readJournal
+        .persistenceIds()
+        .async
+        .runWith(Sink.foreach(e => ids.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
 
@@ -285,7 +293,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         })
       }), 7.second)
 
-      val ids = Await.result(readJournal.currentPersistenceIds().runWith(Sink.seq), 7.seconds)
+      val ids = Await.result(readJournal.currentPersistenceIds().async.runWith(Sink.seq), 7.seconds)
 
       ids.size shouldBe 250
 
