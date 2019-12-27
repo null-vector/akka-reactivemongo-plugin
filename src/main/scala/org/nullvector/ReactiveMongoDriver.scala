@@ -23,7 +23,7 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 
 class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
-  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
+  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
 
   private implicit val timeout: Timeout = Timeout(5.seconds)
   private val collections: ActorRef = system.actorOf(Props(new Collections()))

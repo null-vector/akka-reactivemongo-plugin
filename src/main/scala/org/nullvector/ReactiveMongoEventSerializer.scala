@@ -20,7 +20,7 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
 
-  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-journal-dispatcher")
+  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
 
   private val adapterRegistryRef: ActorRef = system.actorOf(Props(new EventAdapterRegistry()))
 
