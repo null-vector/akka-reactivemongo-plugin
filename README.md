@@ -13,11 +13,11 @@ resolvers += Resolver.bintrayRepo("null-vector", "releases")
 ```
 For reactivemongo `0.18.x` use:
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.8"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.9"
 ```
 For reactivemongo `0.19.x` use:
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.0"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.1"
 ```
 
 ## Configuration
