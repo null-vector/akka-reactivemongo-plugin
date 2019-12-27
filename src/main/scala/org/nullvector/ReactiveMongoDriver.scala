@@ -6,7 +6,7 @@ import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandError
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
-import reactivemongo.api.{DefaultDB, MongoConnection, MongoDriver}
+import reactivemongo.api.{AsyncDriver, DefaultDB, MongoConnection, MongoDriver}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -30,13 +30,13 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   private val database: DefaultDB = {
     val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
-    val parsedUri = MongoConnection.parseURI(mongoUri) match {
+    val parsedUri: MongoConnection.ParsedURI = MongoConnection.parseURI(mongoUri) match {
       case Success(_parsedURI) => _parsedURI
       case Failure(exception) => throw exception
     }
     val databaseName = parsedUri.db.getOrElse(throw new Exception("Missing database name"))
     Await.result(
-      MongoDriver(system.settings.config).connection(parsedUri, strictUri = false).get.database(databaseName),
+      AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName)),
       30.seconds
     )
   }

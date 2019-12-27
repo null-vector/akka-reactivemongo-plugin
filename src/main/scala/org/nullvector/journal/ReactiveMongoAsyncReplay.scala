@@ -22,7 +22,7 @@ trait ReactiveMongoAsyncReplay {
         Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr)
       )
       collection
-        .find(query, Option.empty)
+        .find(query, Option.empty[BSONDocument])
         .sort(BSONDocument(Fields.to_sn -> 1))
         .cursor[BSONDocument]()
         .documentSource()

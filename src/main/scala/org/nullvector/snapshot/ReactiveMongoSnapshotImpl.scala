@@ -20,7 +20,7 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
           Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
           Fields.snapshot_ts -> BSONDocument("$gte" -> criteria.minTimestamp),
           Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
-        ), None).one[BSONDocument]
+        ), Option.empty[BSONDocument]).one[BSONDocument]
 
       maybeSelected <- maybeDoc.map { doc =>
         val payloadDoc = (doc.getAsOpt[BSONDocument](Fields.payload), doc.getAsOpt[BSONDocument](Fields.snapshot_payload)) match {
