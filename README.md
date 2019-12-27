@@ -5,25 +5,20 @@
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin support scala `2.12` and `2.13`, akka `2.5.23` and reactivemongo `0.18.x` and `0.19.x`.
+This plugin support scala `2.12` and `2.13`, akka `2.6.1` and reactivemongo `0.18.x` and `0.19.x`.
 
 Add in your `build.sbt` the following lines:
 ```scala
-resolvers += "Akka RactiveMongo Plugin" at "https://dl.bintray.com/null-vector/releases"
-or
 resolvers += Resolver.bintrayRepo("null-vector", "releases")
-
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.6"
 ```
 For reactivemongo `0.18.x` use:
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.6"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.8"
 ```
 For reactivemongo `0.19.x` use:
 ```scala
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.0"
 ```
-
 
 ## Configuration
 To active the plugin an set the mongodb uri you have to add in your application.conf the following lines:
@@ -45,16 +40,16 @@ Events adapters must extends from `org.nullvector.EventAdapter[E]`, for example:
 ```scala
 class UserAddedEventAdapter extends EventAdapter[UserAdded] {
 
-    private val userAddedMapping: BSONDocumentHandler[UserAdded] = Macros.handler[UserAdded]
+    private implicit val userAddedMapping: BSONDocumentHandler[UserAdded] = Macros.handler[UserAdded]
 
     override val manifest: String = "UserAdded"
 
-    override def payloadToBson(payload: UserAdded): BSONDocument = userAddedMapping.write(payload)
+    override def payloadToBson(payload: UserAdded): BSONDocument = BSON.writeDocument(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): UserAdded = userAddedMapping.read(doc)
+    override def bsonToPayload(doc: BSONDocument): UserAdded = BSON.readDocument(doc).get
+
 }
 ```
-
 And then you have to register the new Adapter:
 ```scala
   val serializer = ReactiveMongoEventSerializer(system)
@@ -78,7 +73,6 @@ akka-persistence-reactivemongo {
 
 Here are some examples of how to use persistence query:
 ```scala
-
 val readJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
 
 val tagsSource: Source[EventEnvelope, NotUsed] = readJournal.currentEventsByTag("some_tag", NoOffset)
@@ -86,14 +80,11 @@ val tagsSource: Source[EventEnvelope, NotUsed] = readJournal.currentEventsByTag(
 tagsSource.runWith(Sink.foreach{ envelope => envelope.event match {
   case UserAdded(name, age) => // Do Something
 }})
-
 ```
 
 Sometime is necesary to create an Offset:
 ```scala
-
 val offset = ObjectIdOffset(DateTime.now())
-
 ```
 For streams that never complete like `#persistenceIds`, `#eventsByTag`, etc. it is possible to configure the interval that pulls from the journal:
 ```
@@ -104,7 +95,6 @@ akka-persistence-reactivemongo {
   }
 }
 ```
-
 If you want different refresh intervals from different query, you can add a `RefreshInterval` Attribute in the Source definition:
 ```scala
   readJournal

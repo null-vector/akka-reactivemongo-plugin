@@ -123,11 +123,11 @@ object EventSerializerSpec {
 
     override def tags(payload: Any): Set[String] = Set("tag_1", "tag_2")
 
-    private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
+    private implicit val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
 
-    override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.writeTry(payload).get
+    override def payloadToBson(payload: AnEvent): BSONDocument = BSON.writeDocument(payload).get
 
-    override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.readDocument(doc).get
+    override def bsonToPayload(doc: BSONDocument): AnEvent = BSON.readDocument(doc).get
   }
 
   class SomeAkkaEventAdapter(system: ExtendedActorSystem) extends akka.persistence.journal.EventAdapter {

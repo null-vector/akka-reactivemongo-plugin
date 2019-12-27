@@ -1,11 +1,9 @@
 package org.nullvector.query
 
 import akka.NotUsed
-import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.scaladsl.Source
 import akka.stream.stage._
 import akka.stream.{Attributes, Outlet, SourceShape}
-
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
