@@ -56,18 +56,42 @@ trait EventsQueries
     currentEventsByTags(Seq(tag), offset)
   }
 
-
-  def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source.fromFuture(rxDriver.journals())
-      .mapConcat(identity)
-      .groupBy(100, _.name)
-      .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))
-      .mergeSubstreamsWithParallelism(100)
-      .via(document2Envelope)
+  def currentRawEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
+    currentRawEventsByTag(Seq(tag), offset)
   }
 
-  private def document2Envelope: Flow[BSONDocument, EventEnvelope, NotUsed] = {
-    Flow[BSONDocument]
+  def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+    eventsByTagQuery(tags, offset)(rawDocument2Envelope)
+  }
+
+  def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+    eventsByTagQuery(tags, offset)(document2Envelope)
+  }
+
+  private def eventsByTagQuery(tags: Seq[String], offset: Offset)(toEnvelope: Flow[BSONDocument, EventEnvelope, NotUsed]): Source[EventEnvelope, NotUsed] = {
+    Source.fromFuture(rxDriver.journals())
+      .mapConcat(identity)
+      .groupBy(maxSubstreams = 100, f = _.name)
+      .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))
+      .mergeSubstreamsWithParallelism(parallelism = 100)
+      .via(toEnvelope)
+  }
+
+  private def rawDocument2Envelope = Flow[BSONDocument]
+      .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
+        val event = doc.getAs[BSONDocument](Fields.events).get
+        val rawPayload = event.getAs[BSONDocument](Fields.payload).get
+        Future.successful(rawPayload)
+          .map(payload => EventEnvelope(
+            ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
+            event.getAs[String](Fields.persistenceId).get,
+            event.getAs[Long](Fields.sequence).get,
+            payload
+          )
+          )
+      }
+
+  private def document2Envelope = Flow[BSONDocument]
       .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
         val event = doc.getAs[BSONDocument](Fields.events).get
         val rawPayload = event.getAs[BSONDocument](Fields.payload).get
@@ -75,15 +99,14 @@ trait EventsQueries
           case Fields.manifest_doc => Future.successful(rawPayload)
           case manifest => serializer.deserialize(manifest, rawPayload)
         })
-        .map(payload => EventEnvelope(
+          .map(payload => EventEnvelope(
             ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
             event.getAs[String](Fields.persistenceId).get,
             event.getAs[Long](Fields.sequence).get,
             payload,
           )
-        )
+          )
       }
-  }
 
   private def buildFindEventsByTagsQuery(collection: BSONCollection, offset: Offset, tags: Seq[String]) = {
     import collection.BatchCommands.AggregationFramework._
