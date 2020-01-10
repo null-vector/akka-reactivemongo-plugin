@@ -7,7 +7,7 @@ lazy val rxmongoVersion = "0.18.7"
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
 version := "1.0-SNAPSHOT"
-scalaVersion := scala212
+scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
 
 resolvers += "Akka Maven Repository" at "http://akka.io/repository"

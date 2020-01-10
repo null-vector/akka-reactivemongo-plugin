@@ -65,11 +65,33 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       }
 
       {
-        val eventualDone = readJournal.currentEventsByTag("event_tag_other", NoOffset).runWith(Sink.seq)
+        val eventualDone = readJournal.currentRawEventsByTag("event_tag_other", NoOffset).runWith(Sink.seq)
         println(System.currentTimeMillis())
         val envelopes = Await.result(eventualDone, 1.seconds)
         println(System.currentTimeMillis())
         envelopes.size shouldBe 170
+      }
+
+      "Raw events by tag from NoOffset" in {
+        val prefixReadColl = "ReadCollection"
+
+        dropAll()
+
+        Await.result(Future.sequence((1 to 10).map { idx =>
+          val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+          reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
+            AtomicWrite(group.map(jdx =>
+              PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+            ))
+          ).toSeq)
+        }), 7.second)
+
+        val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+        println(System.currentTimeMillis())
+        val envelopes = Await.result(eventualDone, 1.seconds)
+        println(System.currentTimeMillis())
+        envelopes.size shouldBe 160
+        envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
       }
 
     }
@@ -91,7 +113,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         val envelopes = Await.result(eventualDone, 1.seconds)
         println(System.currentTimeMillis())
         envelopes.size shouldBe 50
-        envelopes.head.event.isInstanceOf[BSONDocument] shouldBe true
+        envelopes.head.event shouldBe an[BSONDocument]
         envelopes.head.event.asInstanceOf[BSONDocument].getAs[String]("test").get shouldBe "test"
       }
 
