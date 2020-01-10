@@ -93,7 +93,6 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         envelopes.size shouldBe 160
         envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
       }
-
     }
 
     "current events by persistence id" in {

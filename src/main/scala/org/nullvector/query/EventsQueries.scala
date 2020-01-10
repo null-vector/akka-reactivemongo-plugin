@@ -18,17 +18,17 @@ trait EventsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
-  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => event.getAs[String](Fields.manifest).get match {
-    case Fields.manifest_doc => Future.successful(rawPayload)
-    case manifest => serializer.deserialize(manifest, rawPayload)
-  }
-
   val greaterOffsetOf: (Offset, Offset) => Offset = (leftOffset: Offset, rightOffset: Offset) => {
     (leftOffset, rightOffset) match {
       case (NoOffset, _) => rightOffset
       case (leftId: ObjectIdOffset, rightId: ObjectIdOffset) if leftId < rightId => rightOffset
       case _ => leftOffset
     }
+  }
+
+  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => event.getAs[String](Fields.manifest).get match {
+    case Fields.manifest_doc => Future.successful(rawPayload)
+    case manifest => serializer.deserialize(manifest, rawPayload)
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
