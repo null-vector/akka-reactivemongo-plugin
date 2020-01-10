@@ -18,13 +18,17 @@ trait EventsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
+  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => event.getAs[String](Fields.manifest).get match {
+    case Fields.manifest_doc => Future.successful(rawPayload)
+    case manifest => serializer.deserialize(manifest, rawPayload)
+  }
+
   val greaterOffsetOf: (Offset, Offset) => Offset = (leftOffset: Offset, rightOffset: Offset) => {
     (leftOffset, rightOffset) match {
       case (NoOffset, _) => rightOffset
       case (leftId: ObjectIdOffset, rightId: ObjectIdOffset) if leftId < rightId => rightOffset
       case _ => leftOffset
     }
-
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
@@ -43,7 +47,7 @@ trait EventsQueries
     Source
       .fromFuture(rxDriver.journalCollection(persistenceId))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
-      .via(document2Envelope)
+      .via(document2Envelope(manifestBasedSerialization))
   }
 
   override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = Source
@@ -61,44 +65,28 @@ trait EventsQueries
   }
 
   def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    eventsByTagQuery(tags, offset)(rawDocument2Envelope)
+    implicit val raw = (_: BSONDocument, rawPayload: BSONDocument) => Future(rawPayload)
+    eventsByTagQuery(tags, offset)
   }
 
   def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    eventsByTagQuery(tags, offset)(document2Envelope)
+    eventsByTagQuery(tags, offset)
   }
 
-  private def eventsByTagQuery(tags: Seq[String], offset: Offset)(toEnvelope: Flow[BSONDocument, EventEnvelope, NotUsed]): Source[EventEnvelope, NotUsed] = {
+  private def eventsByTagQuery(tags: Seq[String], offset: Offset)(implicit serializableMethod: (BSONDocument, BSONDocument) => Future[Any]): Source[EventEnvelope, NotUsed] = {
     Source.fromFuture(rxDriver.journals())
       .mapConcat(identity)
       .groupBy(maxSubstreams = 100, f = _.name)
       .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))
       .mergeSubstreamsWithParallelism(parallelism = 100)
-      .via(toEnvelope)
+      .via(document2Envelope(serializableMethod))
   }
 
-  private def rawDocument2Envelope = Flow[BSONDocument]
+  private def document2Envelope(serializationMethod: (BSONDocument, BSONDocument) => Future[Any]) = Flow[BSONDocument]
       .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
-        val event = doc.getAs[BSONDocument](Fields.events).get
-        val rawPayload = event.getAs[BSONDocument](Fields.payload).get
-        Future.successful(rawPayload)
-          .map(payload => EventEnvelope(
-            ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
-            event.getAs[String](Fields.persistenceId).get,
-            event.getAs[Long](Fields.sequence).get,
-            payload
-          )
-          )
-      }
-
-  private def document2Envelope = Flow[BSONDocument]
-      .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
-        val event = doc.getAs[BSONDocument](Fields.events).get
-        val rawPayload = event.getAs[BSONDocument](Fields.payload).get
-        (event.getAs[String](Fields.manifest).get match {
-          case Fields.manifest_doc => Future.successful(rawPayload)
-          case manifest => serializer.deserialize(manifest, rawPayload)
-        })
+        val event: BSONDocument = doc.getAs[BSONDocument](Fields.events).get
+        val rawPayload: BSONDocument = event.getAs[BSONDocument](Fields.payload).get
+        serializationMethod(event, rawPayload)
           .map(payload => EventEnvelope(
             ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
             event.getAs[String](Fields.persistenceId).get,

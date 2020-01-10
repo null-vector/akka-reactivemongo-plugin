@@ -86,7 +86,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           ).toSeq)
         }), 7.second)
 
-        val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+        val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
         println(System.currentTimeMillis())
         val envelopes = Await.result(eventualDone, 1.seconds)
         println(System.currentTimeMillis())
