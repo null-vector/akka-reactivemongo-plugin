@@ -71,28 +71,28 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         envelopes.size shouldBe 170
       }
+    }
 
-      "Raw events by tag from NoOffset" in {
-        val prefixReadColl = "ReadCollection"
+    "Raw events by tag from NoOffset" in {
+      val prefixReadColl = "ReadCollection"
 
-        dropAll()
+      dropAll()
 
-        Await.result(Future.sequence((1 to 10).map { idx =>
-          val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
-          reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
-            AtomicWrite(group.map(jdx =>
-              PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
-            ))
-          ).toSeq)
-        }), 7.second)
+      Await.result(Future.sequence((1 to 600).map { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
+          AtomicWrite(group.map(jdx =>
+            PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+          ))
+        ).toSeq)
+      }), 7.second)
 
-        val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
-        println(System.currentTimeMillis())
-        val envelopes = Await.result(eventualDone, 1.seconds)
-        println(System.currentTimeMillis())
-        envelopes.size shouldBe 160
-        envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
-      }
+      val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+      println(System.currentTimeMillis())
+      val envelopes = Await.result(eventualDone, 1.seconds)
+      println(System.currentTimeMillis())
+      envelopes.size shouldBe 160
+      envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
     }
 
     "current events by persistence id" in {
