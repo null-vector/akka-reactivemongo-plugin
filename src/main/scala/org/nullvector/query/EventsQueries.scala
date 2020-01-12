@@ -18,6 +18,8 @@ trait EventsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
+  private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
+
   val greaterOffsetOf: (Offset, Offset) => Offset = (leftOffset: Offset, rightOffset: Offset) => {
     (leftOffset, rightOffset) match {
       case (NoOffset, _) => rightOffset
@@ -56,40 +58,42 @@ trait EventsQueries
     currentEventsByTags(Seq(tag), offset)
   }
 
-
   def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source.future(rxDriver.journals())
+    Source.lazyFuture(() => rxDriver.journals())
       .mapConcat(identity)
-      .groupBy(100, _.name)
-      .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))
-      .mergeSubstreamsWithParallelism(100)
+      .splitWhen(_ => true)
+      .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
+      .mergeSubstreams
       .via(document2Envelope)
   }
 
   private def document2Envelope: Flow[BSONDocument, EventEnvelope, NotUsed] = {
     Flow[BSONDocument]
-      .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
+      .mapAsync(amountOfCores) { doc =>
         val event = doc.getAs[BSONDocument](Fields.events).get
         val rawPayload = event.getAs[BSONDocument](Fields.payload).get
         (event.getAs[String](Fields.manifest).get match {
           case Fields.manifest_doc => Future.successful(rawPayload)
           case manifest => serializer.deserialize(manifest, rawPayload)
         })
-        .map(payload => EventEnvelope(
+          .map(payload => EventEnvelope(
             ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
             event.getAs[String](Fields.persistenceId).get,
             event.getAs[Long](Fields.sequence).get,
             payload,
           )
-        )
+          )
       }
   }
 
   private def buildFindEventsByTagsQuery(collection: BSONCollection, offset: Offset, tags: Seq[String]) = {
+
+    def query(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
+
     import collection.BatchCommands.AggregationFramework._
-    val $1stMatch = Match(BSONDocument(Fields.tags -> BSONDocument("$all" -> tags)) ++ filterByOffset(offset))
+    val $1stMatch = Match(query(Fields.tags) ++ filterByOffset(offset))
     val $unwind = UnwindField(Fields.events)
-    val $2ndMatch = Match(BSONDocument(s"${Fields.events}.${Fields.tags}" -> BSONDocument("$all" -> tags)))
+    val $2ndMatch = Match(query(s"${Fields.events}.${Fields.tags}"))
 
     collection
       .aggregateWith[BSONDocument]()(_ => ($1stMatch, List($unwind, $2ndMatch)))
