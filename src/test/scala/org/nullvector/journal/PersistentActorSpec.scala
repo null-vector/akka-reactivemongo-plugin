@@ -1,5 +1,6 @@
 package org.nullvector.journal
 
+import akka.Done
 import akka.actor.{ActorSystem, Kill, PoisonPill, Props}
 import akka.persistence.PersistentActor
 import akka.persistence.journal.Tagged
@@ -58,8 +59,9 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
       val persistId = randomId.toString
       val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
       actorRef ! Command("Event One")
+      expectMsg(Done)
       actorRef ! Command("Event Two")
-      receiveN(2, 15.seconds)
+      expectMsg(Done)
       actorRef ! Kill
       actorRef ! Command("get_state")
       expectMsg(15.seconds, Some("Event Two"))
@@ -85,7 +87,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
   }
 
-  override def afterAll {
+  override def afterAll: Unit = {
     shutdown()
   }
 
@@ -113,7 +115,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
         persistAsync(AnEvent(action.toString)) { event =>
           println(s"Event $event persisted")
           state = Some(event.string)
-          sender() ! "ok"
+          sender() ! Done
         }
 
       case MultiCommand(action1, action2, action3) =>
@@ -123,7 +125,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
         deferAsync(()) { _ =>
           println(s"All Events persisted")
           state = Some(action3)
-          sender() ! "ok"
+          sender() ! Done
         }
 
     }

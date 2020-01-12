@@ -1,21 +1,24 @@
 lazy val scala212 = "2.12.9"
 lazy val scala213 = "2.13.1"
 lazy val supportedScalaVersions = List(scala212, scala213)
-lazy val akkaVersion = "2.5.26"
-lazy val rxmongoVersion = "0.18.7"
+lazy val akkaVersion = "2.6.1"
+lazy val rxmongoVersion = "0.18.8"
 
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
 version := "1.0-SNAPSHOT"
 scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
-
-resolvers += "Akka Maven Repository" at "http://akka.io/repository"
+scalacOptions ++= Seq(
+//  "-Xfatal-warnings",  // New lines for each options
+  "-deprecation",
+  "-feature",
+  "-language:implicitConversions",
+)
+resolvers += "Akka Maven Repository" at "https://akka.io/repository"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion
-libraryDependencies += "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
-libraryDependencies += "com.typesafe.akka" %% "akka-cluster-tools" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion
 
@@ -29,6 +32,12 @@ libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmon
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
 
-licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
 
 coverageExcludedPackages := "<empty>;.*ReactiveMongoJavaReadJournal.*"
+
+Test / fork := true
+Test / javaOptions += "-Xmx4G"
+Test / javaOptions += "-XX:+CMSClassUnloadingEnabled"
+Test / javaOptions += "-XX:+UseConcMarkSweepGC"
+Test / javaOptions += "-Dfile.encoding=UTF-8"
