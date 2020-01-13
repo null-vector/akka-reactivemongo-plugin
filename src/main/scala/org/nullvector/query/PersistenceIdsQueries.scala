@@ -22,6 +22,8 @@ trait PersistenceIdsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
+  private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
+
   override def persistenceIds(): Source[String, NotUsed] = {
     Source.fromGraph(new PullerGraph[PersistenceId, Offset](
       NoOffset,
@@ -39,11 +41,11 @@ trait PersistenceIdsQueries
   }
 
   def currentPersistenceIds(offset: Offset): Source[PersistenceId, NotUsed] = {
-    Source.future(rxDriver.journals())
+    Source.lazyFuture(() => rxDriver.journals())
       .mapConcat(identity)
-      .groupBy(100, _.name)
-      .flatMapConcat(coll => buildFindAllIds(coll, offset))
-      .mergeSubstreamsWithParallelism(100)
+      .splitWhen(_ => true)
+      .flatMapConcat(buildFindAllIds(_, offset))
+      .mergeSubstreams
   }
 
   private def buildFindAllIds(coll: collection.BSONCollection, offset: Offset): Source[PersistenceId, Future[State]] = {
