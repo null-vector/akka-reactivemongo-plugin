@@ -88,20 +88,20 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       dropAll()
 
-      Await.result(Source(1 to 600).mapAsync(amountOfCores) { idx =>
+      Await.result(Source(1 to 200).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
           AtomicWrite(group.map(jdx =>
             PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
           ))
         ).toList)
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.second)
 
       val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
-      val envelopes = Await.result(eventualDone, 1.seconds)
+      val envelopes = Await.result(eventualDone, 3.seconds)
       println(System.currentTimeMillis())
-      envelopes.size shouldBe 160
+      envelopes.size shouldBe 3200
       envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
     }
 
