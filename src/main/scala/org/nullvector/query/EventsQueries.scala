@@ -18,13 +18,19 @@ trait EventsQueries
 
   this: ReactiveMongoScalaReadJournal =>
 
+  private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
+
   val greaterOffsetOf: (Offset, Offset) => Offset = (leftOffset: Offset, rightOffset: Offset) => {
     (leftOffset, rightOffset) match {
       case (NoOffset, _) => rightOffset
       case (leftId: ObjectIdOffset, rightId: ObjectIdOffset) if leftId < rightId => rightOffset
       case _ => leftOffset
     }
+  }
 
+  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => event.getAs[String](Fields.manifest).get match {
+    case Fields.manifest_doc => Future.successful(rawPayload)
+    case manifest => serializer.deserialize(manifest, rawPayload)
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
@@ -43,7 +49,7 @@ trait EventsQueries
     Source
       .future(rxDriver.journalCollection(persistenceId))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
-      .via(document2Envelope)
+      .via(document2Envelope(manifestBasedSerialization))
   }
 
   override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = Source
@@ -52,44 +58,61 @@ trait EventsQueries
     )
     .flatMapConcat(identity)
 
+  /*
+    * Query events that have a specific tag. Those events matching target tags would
+    * be serialized depending on Document `manifest` field and events serializer that are provided.
+   */
   override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     currentEventsByTags(Seq(tag), offset)
   }
 
-
-  def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source.future(rxDriver.journals())
-      .mapConcat(identity)
-      .groupBy(100, _.name)
-      .flatMapConcat(coll => buildFindEventsByTagsQuery(coll, offset, tags))
-      .mergeSubstreamsWithParallelism(100)
-      .via(document2Envelope)
+  /*
+    * Same as  [[EventsQueries#currentEventsByTag]] but events aren't serialized, instead
+    * the `EventEnvelope` will contain the raw `BSONDocument`
+   */
+  def currentRawEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
+    currentRawEventsByTag(Seq(tag), offset)
   }
 
-  private def document2Envelope: Flow[BSONDocument, EventEnvelope, NotUsed] = {
-    Flow[BSONDocument]
-      .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
-        val event = doc.getAs[BSONDocument](Fields.events).get
-        val rawPayload = event.getAs[BSONDocument](Fields.payload).get
-        (event.getAs[String](Fields.manifest).get match {
-          case Fields.manifest_doc => Future.successful(rawPayload)
-          case manifest => serializer.deserialize(manifest, rawPayload)
-        })
-        .map(payload => EventEnvelope(
+  def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+    implicit val raw = (_: BSONDocument, rawPayload: BSONDocument) => Future(rawPayload)
+    eventsByTagQuery(tags, offset)
+  }
+
+  def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+    eventsByTagQuery(tags, offset)
+  }
+
+  private def eventsByTagQuery(tags: Seq[String], offset: Offset)(implicit serializableMethod: (BSONDocument, BSONDocument) => Future[Any]): Source[EventEnvelope, NotUsed] = {
+    Source.lazyFuture(() => rxDriver.journals())
+      .mapConcat(identity)
+      .splitWhen(_ => true)
+      .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
+      .mergeSubstreams
+      .via(document2Envelope(serializableMethod))
+  }
+
+  private def document2Envelope(serializationMethod: (BSONDocument, BSONDocument) => Future[Any]) = Flow[BSONDocument]
+      .mapAsync(amountOfCores) { doc =>
+        val event: BSONDocument = doc.getAs[BSONDocument](Fields.events).get
+        val rawPayload: BSONDocument = event.getAs[BSONDocument](Fields.payload).get
+        serializationMethod(event, rawPayload)
+          .map(payload => EventEnvelope(
             ObjectIdOffset(doc.getAs[BSONObjectID]("_id").get),
             event.getAs[String](Fields.persistenceId).get,
             event.getAs[Long](Fields.sequence).get,
             payload,
-          )
-        )
+          ))
       }
-  }
 
   private def buildFindEventsByTagsQuery(collection: BSONCollection, offset: Offset, tags: Seq[String]) = {
+
+    def query(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
+
     import collection.BatchCommands.AggregationFramework._
-    val $1stMatch = Match(BSONDocument(Fields.tags -> BSONDocument("$all" -> tags)) ++ filterByOffset(offset))
+    val $1stMatch = Match(query(Fields.tags) ++ filterByOffset(offset))
     val $unwind = UnwindField(Fields.events)
-    val $2ndMatch = Match(BSONDocument(s"${Fields.events}.${Fields.tags}" -> BSONDocument("$all" -> tags)))
+    val $2ndMatch = Match(query(s"${Fields.events}.${Fields.tags}"))
 
     collection
       .aggregateWith[BSONDocument]()(_ => ($1stMatch, List($unwind, $2ndMatch)))
