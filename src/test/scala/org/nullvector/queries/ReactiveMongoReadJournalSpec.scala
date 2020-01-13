@@ -88,14 +88,14 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       dropAll()
 
-      Await.result(Future.sequence((1 to 600).map { idx =>
+      Await.result(Source(1 to 600).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
           AtomicWrite(group.map(jdx =>
             PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
           ))
-        ).toSeq)
-      }), 7.second)
+        ).toList)
+      }.runWith(Sink.ignore), 7.second)
 
       val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
