@@ -81,7 +81,28 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         envelopes.size shouldBe 3300
       }
+    }
 
+    "Raw events by tag from NoOffset" in {
+      val prefixReadColl = "ReadCollection"
+
+      dropAll()
+
+      Await.result(Source(1 to 600).mapAsync(amountOfCores) { idx =>
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
+        reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
+          AtomicWrite(group.map(jdx =>
+            PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+          ))
+        ).toList)
+      }.runWith(Sink.ignore), 7.second)
+
+      val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+      println(System.currentTimeMillis())
+      val envelopes = Await.result(eventualDone, 1.seconds)
+      println(System.currentTimeMillis())
+      envelopes.size shouldBe 160
+      envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
     }
 
     "current events by persistence id" in {
@@ -104,7 +125,6 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         envelopes.head.event.isInstanceOf[BSONDocument] shouldBe true
         envelopes.head.event.asInstanceOf[BSONDocument].getAs[String]("test").get shouldBe "test"
       }
-
     }
 
 
