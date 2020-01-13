@@ -49,7 +49,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       dropAll()
 
-      Await.result(Source(1 to 100).mapAsync(amountOfCores) { idx =>
+      Await.result(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
           AtomicWrite(group.map(jdx =>
@@ -63,7 +63,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         val envelopes = Await.result(eventualDone, 3.seconds)
         println(System.currentTimeMillis())
-        envelopes.size shouldBe 1600
+        envelopes.size shouldBe 160
       }
 
       {
@@ -71,7 +71,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         val envelopes = Await.result(eventualDone, 3.seconds)
         println(System.currentTimeMillis())
-        envelopes.size shouldBe 1700
+        envelopes.size shouldBe 170
       }
 
       {
@@ -79,7 +79,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         println(System.currentTimeMillis())
         val envelopes = Await.result(eventualDone, 3.seconds)
         println(System.currentTimeMillis())
-        envelopes.size shouldBe 3300
+        envelopes.size shouldBe 330
       }
     }
 
@@ -88,7 +88,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
       dropAll()
 
-      Await.result(Source(1 to 200).mapAsync(amountOfCores) { idx =>
+      Await.result(Source(1 to 20).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
           AtomicWrite(group.map(jdx =>
@@ -101,7 +101,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       println(System.currentTimeMillis())
       val envelopes = Await.result(eventualDone, 3.seconds)
       println(System.currentTimeMillis())
-      envelopes.size shouldBe 3200
+      envelopes.size shouldBe 320
       envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
     }
 
