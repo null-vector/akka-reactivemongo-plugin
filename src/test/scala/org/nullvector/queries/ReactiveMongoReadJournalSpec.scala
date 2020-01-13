@@ -56,7 +56,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
             PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
           ))
         ).toList)
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       {
         val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
@@ -114,7 +114,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).map(jdx =>
           AtomicWrite(PersistentRepr(payload = BSONDocument("test" -> "test"), persistenceId = pId, sequenceNr = jdx))
         ))
-      }, 7.second)
+      }, 14.seconds)
 
       {
         val eventualDone = readJournal.currentEventsByPersistenceId(pId, 0, 10000).runWith(Sink.seq)
@@ -138,7 +138,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(2000)
       val offset = ObjectIdOffset(DateTime.now())
@@ -148,11 +148,11 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       val eventualDone = readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
       println(System.currentTimeMillis())
-      val envelopes = Await.result(eventualDone, 7.seconds)
+      val envelopes = Await.result(eventualDone, 14.seconds)
       println(System.currentTimeMillis())
 
       envelopes.size shouldBe 250
@@ -176,7 +176,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(2 * 1000)
 
@@ -185,7 +185,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(3 * 1000)
 
@@ -220,7 +220,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(1 * 1000)
 
@@ -229,7 +229,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(1 * 1000)
 
@@ -257,7 +257,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages(immutable.Seq(
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(2 * 1000)
 
@@ -265,7 +265,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         reactiveMongoJournalImpl.asyncWriteMessages(immutable.Seq(
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(3 * 1000)
 
@@ -292,7 +292,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$collId", 23.45), persistenceId = pId, sequenceNr = 1))
         })
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(3 * 1000)
 
@@ -303,7 +303,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = 1))
         })
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
       Thread.sleep(3 * 1000)
 
@@ -320,9 +320,9 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
           val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$collId", 23.45), persistenceId = pId, sequenceNr = 1))
         })
-      }.runWith(Sink.ignore), 7.second)
+      }.runWith(Sink.ignore), 14.seconds)
 
-      val ids = Await.result(readJournal.currentPersistenceIds().async.runWith(Sink.seq), 7.seconds)
+      val ids = Await.result(readJournal.currentPersistenceIds().async.runWith(Sink.seq), 14.seconds)
 
       ids.size shouldBe 250
 
@@ -334,7 +334,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
     Await.ready(Source.future(rxDriver.journals())
       .mapConcat(identity)
       .mapAsync(amountOfCores)(_.drop(failIfNotFound = false))
-      .runWith(Sink.ignore), 7.seconds)
+      .runWith(Sink.ignore), 14.seconds)
   }
 
   override def afterAll: Unit = {

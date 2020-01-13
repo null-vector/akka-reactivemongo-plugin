@@ -19,7 +19,8 @@ libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.x"
 ```
 For reactivemongo `0.19.x` use:
 
-[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg?version=1.3.2) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/1.3.2/link)```scala
+[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg?version=1.3.2) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/1.3.2/link)
+```scala
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.x"
 ```
 
