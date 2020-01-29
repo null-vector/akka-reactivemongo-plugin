@@ -6,7 +6,7 @@ lazy val rxmongoVersion = "0.18.8"
 
 name := "akka-reactivemongo-plugin"
 organization := "null-vector"
-version := "1.2.10"
+version := "1.2.11"
 scalaVersion := scala213
 crossScalaVersions := supportedScalaVersions
 scalacOptions ++= Seq(
