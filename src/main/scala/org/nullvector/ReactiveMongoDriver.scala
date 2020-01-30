@@ -66,9 +66,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     private val snapshotPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
 
-    private val nameMapping: CollectionNameMapping = system.getClass.getClassLoader.loadClass(
+    private val nameMapping: CollectionNameMapping = system.dynamicAccess.getClassFor[CollectionNameMapping](
       system.settings.config.getString("akka-persistence-reactivemongo.collection-name-mapping")
-    ).newInstance().asInstanceOf[CollectionNameMapping]
+    ).get.newInstance()
 
     override def receive: Receive = {
       case GetJournalCollectionNameFor(persistentId, promise) =>
