@@ -8,6 +8,7 @@ import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 class EventAdapterFactorySpec extends FlatSpec {
 
   it should "create a complex mapping" in {
+
     val eventAdapter = EventAdatpterFactory.adapt[A]("Aed")
 
     val anInstance = A(B(Set(F(Some(C("Hola")))), G(List(D(23)))), C("Que"), D(34, Map("k" -> H(2.3))))

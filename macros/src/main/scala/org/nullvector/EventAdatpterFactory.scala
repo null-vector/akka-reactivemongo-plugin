@@ -2,7 +2,6 @@ package org.nullvector
 
 import scala.annotation.tailrec
 import scala.reflect.macros.whitebox
-import scala.reflect.runtime.universe
 
 object EventAdatpterFactory {
 

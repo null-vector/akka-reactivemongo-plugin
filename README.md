@@ -66,10 +66,10 @@ And then you have to register the new Adapter:
 To avoid writing boilerplate code creating Event Adapters, we can use the `EventAdapterFactory`:
 ```scala
 case class ProductId(id: String) extends AnyVal
-case class InvoceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
-case class InviceItemAdded(invoceItem: InvoceItem)
+case class InvoiceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
+case class InvoiceItemAdded(invoiceItem: InvoiceItem)
 
-val eventAdapter = EventAdatpterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
+val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
 
 ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
 ```
