@@ -10,7 +10,10 @@ sealed trait Tree[E] extends Iterable[E] {
 
 class NodeTree[E](root: E, children: List[Tree[E]]) extends Tree[E] {
 
-  override def +(tree: Tree[E]): Tree[E] = new NodeTree[E](root, children :+ tree)
+  override def +(tree: Tree[E]): Tree[E] = tree match {
+    case tree: NodeTree[_] => new NodeTree[E](root, children :+ tree)
+    case _ => this
+  }
 
   override def iterator: Iterator[E] = (root :: children.flatMap(_.iterator)).iterator
 }

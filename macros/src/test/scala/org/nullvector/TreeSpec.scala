@@ -21,11 +21,11 @@ class TreeSpec extends FlatSpec with Matchers {
   }
 
   it should """ concatenate two Tree """ in {
-    (Tree("Hola", List(Tree("Que"))) + Tree("Tal")).toList shouldBe (List("Hola", "Que", "Tal"))
+    (Tree("Hola", List(Tree("Que"))) + Tree("Tal")).toList shouldBe List("Hola", "Que", "Tal")
   }
 
   it should """ concatenate an empty tree """ in {
-    (Tree("Hola", List(Tree("Que"))) + Tree.empty).toList shouldBe (List("Hola", "Que"))
+    (Tree("Hola", List(Tree("Que"))) + Tree.empty).toList shouldBe List("Hola", "Que")
   }
 
 }

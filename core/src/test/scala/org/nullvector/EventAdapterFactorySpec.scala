@@ -2,23 +2,42 @@ package org.nullvector
 
 import org.scalatest._
 import Matchers._
+import akka.actor.ActorSystem
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 
 class EventAdapterFactorySpec extends FlatSpec {
 
-  it should "how knows" in {
+  it should "create a complex mapping" in {
+    val eventAdapter = EventAdatpterFactory.adapt[A]("Aed")
 
-    val eventAdapter = EventAdatpterFactory.adapt[ChessboardPieceMoved]("PieceMoved")
+    val anInstance = A(B(Set(F(Some(C("Hola")))), G(List(D(23)))), C("Que"), D(34, Map("k" -> H(2.3))))
+    val document = eventAdapter.payloadToBson(anInstance)
 
-    val document = eventAdapter.toBson(ChessboardPieceMoved("e4", Minute(1, 10)))
+    eventAdapter.manifest shouldBe "Aed"
+    document.getAsOpt[BSONDocument]("d").get.getAsOpt[Int]("i").get shouldBe 34
+    document
+      .getAsOpt[BSONDocument]("d").get
+      .getAsOpt[BSONDocument]("m").get
+      .getAsOpt[BSONDocument]("k").get
+      .getAsOpt[Double]("d").get shouldBe 2.3
 
-    eventAdapter.manifest shouldBe "PieceMoved"
-    document.getAsOpt[String]("movement").get shouldBe "e4"
-    document.getAsOpt[BSONDocument]("time").get.getAsOpt[Int]("minute").get shouldBe 1
+    eventAdapter.bsonToPayload(document) shouldBe anInstance
+
+    ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
   }
-
 }
 
-case class Minute(minute: Int, second: Int)
+case class A(b: B, c: C, d: D)
 
-case class ChessboardPieceMoved(movement: String, time: Minute)
+case class B(f: Set[F], g: G)
+
+case class C(s: String)
+
+case class D(i: Int, m: Map[String, H] = Map.empty)
+
+case class F(maybeC: Option[C])
+
+case class G(ds: List[D])
+
+case class H(d: BigDecimal)
+

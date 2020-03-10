@@ -1,9 +1,8 @@
 package org.nullvector
 
-import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler}
-
 import scala.annotation.tailrec
 import scala.reflect.macros.whitebox
+import scala.reflect.runtime.universe
 
 object EventAdatpterFactory {
 
@@ -33,8 +32,6 @@ object EventAdatpterFactory {
 
            new $eventAdapterTypeName
          """
-      println(code)
-
       context.Expr[EventAdapter[E]](code)
     }
 
@@ -46,11 +43,18 @@ object EventAdatpterFactory {
       }
 
       val namer = new Number2AphabetSeqIterator()
-      extractCaseTypes(context)(typeE).toList.reverse.map { caseType =>
+      extractCaseTypes(context)(typeE).toList.reverse.distinct.map { caseType =>
         val typeName = caseType.typeSymbol.name.toTypeName
         buildExpression(TermName(namer.nextName()), typeName)
       }
     }
+
+    private val supportedClassTypes = List(
+      "scala.Option",
+      "scala.collection.immutable.List",
+      "scala.collection.immutable.Set",
+      "scala.collection.immutable.Map",
+    )
 
     private def extractCaseTypes(context: whitebox.Context)
                                 (caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
@@ -58,10 +62,15 @@ object EventAdatpterFactory {
       if (caseType.typeSymbol.asClass.isCaseClass) {
         Tree(caseType,
           caseType.decls.toList
+            .collect { case method: MethodSymbol if method.isCaseAccessor => method }
             .collect {
-              case m: MethodSymbol if m.isCaseAccessor && m.returnType.typeSymbol.asClass.isCaseClass
-              => extractCaseTypes(context)(m.returnType)
-            }
+              case method if method.returnType.typeSymbol.asClass.isCaseClass =>
+                List(extractCaseTypes(context)(method.returnType))
+              case method if supportedClassTypes.contains(method.returnType.typeSymbol.fullName) =>
+                method.returnType.typeArgs.filter(_.typeSymbol.asClass.isCaseClass)
+                  .map(arg => extractCaseTypes(context)(arg))
+
+            }.flatten
         )
       } else {
         Tree.empty
@@ -89,15 +98,5 @@ object EventAdatpterFactory {
     }
 
   }
-
-  //  class Test extends EventAdapter[String] {
-  //    override val manifest: String = "TEST"
-  //
-  //    private val aa: BSONDocumentHandler[String] = reactivemongo.api.bson.Macros.handler[String]
-  //
-  //    override def payloadToBson(payload: String): BSONDocument = BSON.writeDocument(payload).get
-  //
-  //    override def bsonToPayload(doc: BSONDocument): String = BSON.readDocument[String](doc).get
-  //  }
 
 }

@@ -62,6 +62,17 @@ And then you have to register the new Adapter:
 
   serializer.addEventAdapter(new UserAddedEventAdapter)
 ```
+### EventAdapter Factory
+To avoid writing boilerplate code creating Event Adapters, we can use the `EventAdapterFactory`:
+```scala
+case class ProductId(id: String) extends AnyVal
+case class InvoceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
+case class InviceItemAdded(invoceItem: InvoceItem)
+
+val eventAdapter = EventAdatpterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
+
+ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
+```
 
 ## Persistence Id
 By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
