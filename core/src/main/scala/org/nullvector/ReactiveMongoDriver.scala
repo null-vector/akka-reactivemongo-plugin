@@ -136,7 +136,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     }
   }
 
-  private def index(key: Seq[(String, IndexType)], name: Some[String], unique: Boolean = false, sparse: Boolean = false): Aux[BSONSerializationPack.type] = {
+  import scala.language.existentials
+
+  private def index(key: Seq[(String, IndexType)], name: Some[String], unique: Boolean = false, sparse: Boolean = false) = {
     Index(BSONSerializationPack)(
       key = key,
       name = name,
