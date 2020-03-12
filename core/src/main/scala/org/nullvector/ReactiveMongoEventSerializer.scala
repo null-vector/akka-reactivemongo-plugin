@@ -130,25 +130,5 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
 }
 
-abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
 
-  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
 
-  val eventKey: AdapterKey = AdapterKey(ev.runtimeClass.asInstanceOf[Class[E]])
-
-  def tags(payload: Any): Set[String] = Set.empty
-
-  val manifest: String
-
-  def payloadToBson(payload: E): BSONDocument
-
-  def bsonToPayload(doc: BSONDocument): E
-
-}
-
-case class AdapterKey(payloadType: Class[_]) {
-
-  override def hashCode(): Int = payloadType.getPackage.hashCode()
-
-  override def equals(obj: Any): Boolean = payloadType.isAssignableFrom(obj.asInstanceOf[AdapterKey].payloadType)
-}

@@ -5,6 +5,7 @@ import akka.util.Timeout
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandError
+import reactivemongo.api.indexes.Index.Aux
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
 import reactivemongo.api.{AsyncDriver, DefaultDB, MongoConnection, MongoDriver}
 
@@ -86,8 +87,8 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
           val collection = database.collection[BSONCollection](collectionName)
           for {
             _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
-            _ <- createPidSeqIndex(collection.indexesManager)
-            _ <- createTagIndex(collection.indexesManager)
+            _ <- ensurePidSeqIndex(collection.indexesManager)
+            _ <- ensureTagIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
           } yield ()
         }
@@ -97,7 +98,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
           val collection = database.collection[BSONCollection](collectionName)
           for {
             _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
-            _ <- createSnapshotIndex(collection.indexesManager)
+            _ <- ensureSnapshotIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
           } yield ()
         }
@@ -111,39 +112,54 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         } yield collections)
     }
 
-    private def createPidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-      val indexName = "pid_seq"
-      val index = Index(BSONSerializationPack)(
-        Seq(
-          Fields.persistenceId -> IndexType.Ascending,
-          Fields.to_sn -> IndexType.Descending
-        ),
-        Some(indexName),
-        unique = true,
-        background = true,
-        dropDups = false,
-        sparse = false,
-        None,
-        None,
-        BSONDocument.empty)
-      indexesManager.create(index).map(_ => ())
-    }
+    private def ensurePidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+      val name = Some("pid_seq")
+      val key = Seq(
+        Fields.persistenceId -> IndexType.Ascending,
+        Fields.to_sn -> IndexType.Descending
+      )
+      indexesManager.ensure(index(key, name)).map(_ => ())
+  }
 
-    private def createSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-      val indexName = "snapshot"
-      val index = Index(Seq(
+    private def ensureSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+      val key = Seq(
         Fields.persistenceId -> IndexType.Ascending,
         Fields.sequence -> IndexType.Descending,
         Fields.snapshot_ts -> IndexType.Descending,
-      ), Some(indexName), unique = true)
-      indexesManager.create(index).map(_ => ())
+      )
+      val name = Some("snapshot")
+      indexesManager.ensure(index( key, name, unique = true)).map(_ => ())
     }
 
-    private def createTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-      val indexName = "tags"
-      val index = Index(Seq(Fields.tags -> IndexType.Ascending), Some(indexName), sparse = true)
-      indexesManager.create(index).map(_ => ())
+    private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+      indexesManager.ensure(index(Seq(Fields.tags -> IndexType.Ascending), Some("tags"), sparse = true)).map(_ => ())
     }
+  }
+
+  private def index(key: Seq[(String, IndexType)], name: Some[String], unique: Boolean = false, sparse: Boolean = false): Aux[BSONSerializationPack.type] = {
+    Index(BSONSerializationPack)(
+      key = key,
+      name = name,
+      unique = unique,
+      sparse = sparse,
+      background = false,
+      dropDups = false,
+      //        expireAfterSeconds = None,
+      //        storageEngine = None,
+      //        weights = None,
+      //        defaultLanguage = None,
+      //        languageOverride = None,
+      //        textIndexVersion = None,
+      //        sphereIndexVersion = None,
+      //        bits = None,
+      //        min = None,
+      //        max = None,
+      //        bucketSize = None,
+      //        collation = None,
+      //        wildcardProjection = None,
+      version = None,
+      partialFilter = None,
+      options = BSONDocument.empty)
   }
 
   case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
