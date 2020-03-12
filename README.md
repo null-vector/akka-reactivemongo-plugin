@@ -69,7 +69,7 @@ case class ProductId(id: String) extends AnyVal
 case class InvoiceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
 case class InvoiceItemAdded(invoiceItem: InvoiceItem)
 
-val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
+val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoiceItemAdded")
 
 ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
 ```
