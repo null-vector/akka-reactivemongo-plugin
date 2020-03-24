@@ -73,6 +73,15 @@ val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "In
 
 ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
 ```
+It is also possible to override mappings or add unsupported mappings. All added mappings must extends from `BSONReader[_]` or `BSONWriter[_]` or both.
+```scala
+val reader = new BSONReader[Type1] {...}
+val writer = new BSONWriter[Type2] {...}
+val readerAndWriter = new BSONReader[Type3] with BSONWriter[Type3] {...}
+
+val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", reader, writer, readerAndWriter)
+```
+
 
 ## Persistence Id
 By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
