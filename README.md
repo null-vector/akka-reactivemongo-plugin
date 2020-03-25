@@ -20,7 +20,7 @@ libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.x"
 ```
 For reactivemongo `0.19.x` use:
 
-[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg?version=1.3.4) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/1.3.4/link)
+[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
 
 ```scala
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.x"
@@ -81,7 +81,6 @@ val readerAndWriter = new BSONReader[Type3] with BSONWriter[Type3] {...}
 
 val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", reader, writer, readerAndWriter)
 ```
-
 
 ## Persistence Id
 By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
