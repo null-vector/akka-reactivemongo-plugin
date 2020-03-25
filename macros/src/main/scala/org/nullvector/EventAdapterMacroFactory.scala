@@ -49,11 +49,13 @@ private object EventAdapterMacroFactory {
     validateMappings(context)(overrideMappings)
     val caseClassTypes = extractCaseTypes(context)(eventType).toList.reverse.distinct
     val (overridesMap, nonOverrides) = overrideMappings
-      .partitionMap(expr => expr.actualType.typeArgs.intersect(caseClassTypes) match {
+      // partitionMap is not implementend in scala 2.12
+      .map(expr => expr.actualType.typeArgs.intersect(caseClassTypes) match {
         case Nil => Right(expr)
         case ::(head, _) => Left(head -> expr)
       })
-      .map((a, b) => a.groupBy(_._1) -> b)
+      .partition(_.isLeft)
+      .map((a, b) => a.map(_.left.get).groupBy(_._1) -> b.map(_.right.get)) // using left and rigth for scala 2.12 compatibility
 
     nonOverrides.map(expr =>
       ValDef(Modifiers(Flag.IMPLICIT | Flag.PRIVATE), TermName(context.freshName()), TypeTree(expr.actualType), expr.tree)

@@ -61,7 +61,7 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "add unsupported Mapping" in {
 
-    val writer: BSONWriter[Map[Day, String]] = (t: Map[Day, String]) => Success(BSONDocument(t.map[String, BSONValue](e => e._1.toString -> BSONString(e._2))))
+    val writer: BSONWriter[Map[Day, String]] = (t: Map[Day, String]) => Success(BSONDocument(t.map(e => e._1.toString -> BSONString(e._2))))
     val reader: BSONReader[Map[Day, String]] = _.asTry[BSONDocument].map(_.toMap.map(e => Day(e._1) -> e._2.asOpt[String].get))
 
     val dayMapping = new BSONReader[Day] with BSONWriter[Day] {
