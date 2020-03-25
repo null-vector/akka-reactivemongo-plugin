@@ -140,7 +140,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         ))
       }.runWith(Sink.ignore), 14.seconds)
 
-      Thread.sleep(2000)
+      Thread.sleep(3000)
       val offset = ObjectIdOffset(DateTime.now())
 
       Await.ready(Source(1 to 10).mapAsync(amountOfCores)  { idx =>
