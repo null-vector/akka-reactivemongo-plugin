@@ -19,14 +19,33 @@ private object EventAdapterMacroFactory {
     "scala.collection.immutable.Map",
   )
 
-  def adapt[E](context: blackbox.Context)
-              (withManifest: context.Expr[String], overrideMappings: context.Expr[Any]*)
+  def adaptWithTags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Set[String]])
+                      (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
+    import context.universe._
+    buildAdapterExpression(context)(withManifest, q"override def tags(payload: Any) = $tags")
+  }
+
+  def adaptWithPayload2Tags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Any => Set[String]])
+                              (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
+    import context.universe._
+    buildAdapterExpression(context)(withManifest, q"override def tags(payload: Any) = $tags(payload)")
+  }
+
+  def adapt[E](context: blackbox.Context)(withManifest: context.Expr[String])
               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
+    buildAdapterExpression(context)(withManifest, context.universe.EmptyTree)
+  }
+
+  private def buildAdapterExpression[E](context: blackbox.Context)
+                                       (withManifest: context.Expr[String],
+                                        tags: context.universe.Tree
+                                       )
+                                       (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
 
     import context.universe._
     val eventType = eventTypeTag.tpe
     val eventAdapterTypeName = TypeName(eventType.toString + "EventAdapter")
-    val handlers: Seq[context.Tree] = implicitMappingsFor(context)(eventType, overrideMappings)
+    val handlers: Seq[context.Tree] = implicitMappingsFor(context)(eventType)
     val code =
       q"""
            import reactivemongo.api.bson._
@@ -35,71 +54,33 @@ private object EventAdapterMacroFactory {
               ..$handlers
               override def payloadToBson(payload: $eventType): BSONDocument = BSON.writeDocument(payload).get
               override def bsonToPayload(doc: BSONDocument): $eventType = BSON.readDocument[$eventType](doc).get
+              $tags
            }
            new $eventAdapterTypeName
          """
+    //println(code)
     context.Expr[EventAdapter[E]](code)
   }
 
   private def implicitMappingsFor(context: blackbox.Context)
                                  (eventType: context.universe.Type,
-                                  overrideMappings: Seq[context.Expr[Any]]
                                  ): List[context.universe.Tree] = {
     import context.universe._
-    validateMappings(context)(overrideMappings)
+
+    val bsonWrtterType = context.typeOf[BSONWriter[_]]
+    val bsonReaderType = context.typeOf[BSONReader[_]]
+
     val caseClassTypes = extractCaseTypes(context)(eventType).toList.reverse.distinct
-    val (overridesMap, nonOverrides) = overrideMappings
-      // partitionMap is not implementend in scala 2.12
-      .map(expr => expr.actualType.typeArgs.intersect(caseClassTypes) match {
-        case Nil => Right(expr)
-        case ::(head, _) => Left(head -> expr)
-      })
-      .partition(_.isLeft)
-      .map((a, b) => a.map(_.left.get).groupBy(_._1) -> b.map(_.right.get)) // using left and rigth for scala 2.12 compatibility
 
-    nonOverrides.map(expr =>
-      ValDef(Modifiers(Flag.IMPLICIT | Flag.PRIVATE), TermName(context.freshName()), TypeTree(expr.actualType), expr.tree)
-    ).toList :::
-      caseClassTypes.flatMap { caseType =>
-        overridesMap.get(caseType) match {
-          case Some(overrides) => buildImplicitDeclarations(context)(TypeTree(caseType), overrides.map(_._2).toList)
-          case None => buildImplicitDeclarations(context)(TypeTree(caseType), Nil)
-        }
-      }
-  }
-
-  private def validateMappings(context: blackbox.Context)
-                              (overrides: Seq[context.Expr[Any]]): Unit = {
-    import context.universe._
-
-    overrides.foreach(expr =>
-      if (!(expr.actualType <:< typeOf[BSONReader[_]] || expr.actualType <:< typeOf[BSONWriter[_]])) {
-        context.abort(context.enclosingPosition,
-        s""" Type ${expr.actualType} in override mapping list is no valid.
-             |Must extends from ${typeOf[BSONReader[_]]} or ${typeOf[BSONWriter[_]]} or both.""".stripMargin)
-      }
-    )
-  }
-
-  private def buildImplicitDeclarations(context: blackbox.Context)
-                                       (
-                                         caseType: context.universe.TypeTree,
-                                         overrides: List[context.Expr[Any]]
-                                       ): List[context.universe.Tree] = {
-    import context.universe._
-
-    val valDefs = overrides.map(expr =>
-      ValDef(Modifiers(Flag.IMPLICIT | Flag.PRIVATE), TermName(context.freshName()), TypeTree(expr.actualType), expr.tree))
-    val implicitHandler = overrides match {
-      case Nil => List(q" private implicit val ${TermName(context.freshName())}: BSONDocumentHandler[$caseType] = Macros.handler[$caseType]")
-      case ::(overr, Nil) if (overr.actualType <:< typeOf[BSONReader[_]] && overr.actualType <:< typeOf[BSONWriter[_]]) => Nil
-      case ::(overr, Nil) if overr.actualType <:< typeOf[BSONReader[_]] =>
-        List(q" private implicit val ${TermName(context.freshName())}: BSONWriter[$caseType] = Macros.handler[$caseType]")
-      case ::(overr, Nil) if overr.actualType <:< typeOf[BSONWriter[_]] =>
-        List(q" private implicit val ${TermName(context.freshName())}: BSONReader[$caseType] = Macros.handler[$caseType]")
-      case _ => Nil
+    caseClassTypes.collect {
+      case caseType if context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).isEmpty &&
+        context.inferImplicitValue(appliedType(bsonReaderType, caseType)).isEmpty =>
+        q" private implicit val ${TermName(context.freshName())}: BSONDocumentHandler[$caseType] = Macros.handler[$caseType]"
+      case caseType if !context.inferImplicitValue(appliedType(bsonReaderType, caseType)).isEmpty =>
+        q" private implicit val ${TermName(context.freshName())}: BSONWriter[$caseType] = Macros.handler[$caseType]"
+      case caseType if !context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).isEmpty =>
+        q" private implicit val ${TermName(context.freshName())}: BSONReader[$caseType] = Macros.handler[$caseType]"
     }
-    implicitHandler ::: valDefs
   }
 
   private def extractCaseTypes(context: blackbox.Context)

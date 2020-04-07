@@ -62,7 +62,7 @@ And then you have to register the new Adapter:
 
   serializer.addEventAdapter(new UserAddedEventAdapter)
 ```
-### EventAdapter Factory
+## EventAdapter Factory
 To avoid writing boilerplate code creating Event Adapters, we can use the `EventAdapterFactory`:
 ```scala
 case class ProductId(id: String) extends AnyVal
@@ -75,11 +75,15 @@ ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
 ```
 It is also possible to override mappings or add unsupported mappings. All added mappings must extends from `BSONReader[_]` or `BSONWriter[_]` or both.
 ```scala
-val reader = new BSONReader[Type1] {...}
-val writer = new BSONWriter[Type2] {...}
-val readerAndWriter = new BSONReader[Type3] with BSONWriter[Type3] {...}
+implicit val reader = new BSONReader[Type1] {...}
+implicit val writer = new BSONWriter[Type2] {...}
+implicit val readerAndWriter = new BSONReader[Type3] with BSONWriter[Type3] {...}
 
-val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", reader, writer, readerAndWriter)
+val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent")
+```
+You can also add tags asociated to the Event:
+```scala
+val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", Set("Tag_1", "Tag_2"))
 ```
 
 ## Persistence Id

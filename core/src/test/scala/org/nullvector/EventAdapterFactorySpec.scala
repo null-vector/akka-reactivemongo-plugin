@@ -36,11 +36,11 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "override Reader Mapping" in {
     val kMapping = Macros.handler[K]
-    val kReader: BSONDocumentReader[K] = kMapping.beforeRead({
+    implicit val kReader: BSONDocumentReader[K] = kMapping.beforeRead({
       case BSONDocument(_) => BSONDocument("s" -> "Reader Overrided")
     }: PartialFunction[BSONDocument, BSONDocument])
 
-    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied", kReader)
+    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied")
     val anInstance = I(K("k"))
     val document = eventAdapter.payloadToBson(anInstance)
     eventAdapter.bsonToPayload(document).k.s shouldBe "Reader Overrided"
@@ -48,11 +48,19 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "override Writer Mapping" in {
     val kMapping = Macros.handler[K]
-    val kWriter: BSONWriter[K] = kMapping.afterWrite({
+    implicit val kWriter: BSONWriter[K] = kMapping.afterWrite({
       case BSONDocument(_) => BSONDocument("s" -> "Writer Overrided")
     }: PartialFunction[BSONDocument, BSONDocument])
 
-    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied", kWriter)
+    val justForTestTags: Any => Set[String] = {
+      case "A" => Set("TagA")
+      case _ => Set("TagN")
+    }
+
+    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied", justForTestTags)
+
+    eventAdapter.tags("A") should contain ("TagA")
+    eventAdapter.tags("x") should contain ("TagN")
     val anInstance = I(K("k"))
     eventAdapter.payloadToBson(anInstance)
       .getAsOpt[BSONDocument]("k").get
@@ -61,20 +69,23 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "add unsupported Mapping" in {
 
-    val writer: BSONWriter[Map[Day, String]] = (t: Map[Day, String]) => Success(BSONDocument(t.map(e => e._1.toString -> BSONString(e._2))))
-    val reader: BSONReader[Map[Day, String]] = _.asTry[BSONDocument].map(_.toMap.map(e => Day(e._1) -> e._2.asOpt[String].get))
+    implicit val writer: BSONWriter[Map[Day, String]] = (t: Map[Day, String]) => Success(BSONDocument(t.map(e => e._1.toString -> BSONString("Value_" + e._2))))
+    implicit val reader: BSONReader[Map[Day, String]] = _.asTry[BSONDocument].map(_.toMap.map(e => Day(e._1) -> e._2.asOpt[String].get))
 
-    val dayMapping = new BSONReader[Day] with BSONWriter[Day] {
+    implicit val dayMapping = new BSONReader[Day] with BSONWriter[Day] {
       override def readTry(bson: BSONValue): Try[Day] = bson.asTry[String].map(Day(_))
 
       override def writeTry(t: Day): Try[BSONValue] = Success(BSONString(t.toString))
     }
 
-    val eventAdapter = EventAdatpterFactory.adapt[L]("Led", writer, reader, dayMapping)
+    val tags = Set("aTag")
+    val eventAdapter = EventAdatpterFactory.adapt[L]("Led", tags)
     val document = eventAdapter.payloadToBson(L(Map(Monday -> "A"), Sunday))
     val payload = eventAdapter.bsonToPayload(document)
 
+    eventAdapter.tags(payload) should contain("aTag")
     payload.day shouldBe Sunday
+    payload.m.head._2 shouldBe "Value_A"
   }
 
 }
