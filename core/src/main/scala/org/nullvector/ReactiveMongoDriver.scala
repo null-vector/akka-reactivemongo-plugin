@@ -1,6 +1,6 @@
 package org.nullvector
 
-import akka.actor.{Actor, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
@@ -61,7 +61,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   }
 
 
-  class Collections() extends Actor {
+  class Collections() extends Actor with ActorLogging {
 
     private val journalPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
     private val snapshotPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
@@ -85,22 +85,30 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       case VerifyJournalIndices(collectionName) =>
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
-          for {
+          (for {
             _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
             _ <- ensurePidSeqIndex(collection.indexesManager)
             _ <- ensureTagIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
-          } yield ()
+          } yield ())
+            .onComplete {
+              case Failure(exception) => log.error(exception, exception.getMessage)
+              case Success(value) =>
+            }
         }
 
       case VerifySnapshotIndices(collectionName) =>
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
-          for {
+          (for {
             _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
             _ <- ensureSnapshotIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
-          } yield ()
+          } yield ())
+            .onComplete {
+              case Failure(exception) => log.error(exception, exception.getMessage)
+              case Success(value) =>
+            }
         }
 
       case AddVerified(collectionName) => verifiedNames += collectionName
@@ -118,8 +126,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         Fields.persistenceId -> IndexType.Ascending,
         Fields.to_sn -> IndexType.Descending
       )
-      indexesManager.ensure(index(key, name)).map(_ => ())
-  }
+
+      indexesManager.ensure(index(key, name).asInstanceOf[indexesManager.Index]).map(_ => ())
+    }
 
     private def ensureSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
       val key = Seq(
@@ -128,11 +137,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         Fields.snapshot_ts -> IndexType.Descending,
       )
       val name = Some("snapshot")
-      indexesManager.ensure(index( key, name, unique = true)).map(_ => ())
+      indexesManager.ensure(index(key, name, unique = true).asInstanceOf[indexesManager.Index]).map(_ => ())
     }
 
     private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-      indexesManager.ensure(index(Seq(Fields.tags -> IndexType.Ascending), Some("tags"), sparse = true)).map(_ => ())
+      indexesManager.ensure(index(Seq(Fields.tags -> IndexType.Ascending), Some("tags"), sparse = true).asInstanceOf[indexesManager.Index]).map(_ => ())
     }
   }
 
@@ -146,19 +155,19 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       sparse = sparse,
       background = false,
       dropDups = false,
-      //        expireAfterSeconds = None,
-      //        storageEngine = None,
-      //        weights = None,
-      //        defaultLanguage = None,
-      //        languageOverride = None,
-      //        textIndexVersion = None,
-      //        sphereIndexVersion = None,
-      //        bits = None,
-      //        min = None,
-      //        max = None,
-      //        bucketSize = None,
-      //        collation = None,
-      //        wildcardProjection = None,
+      expireAfterSeconds = None,
+      storageEngine = None,
+      weights = None,
+      defaultLanguage = None,
+      languageOverride = None,
+      textIndexVersion = None,
+      sphereIndexVersion = None,
+      bits = None,
+      min = None,
+      max = None,
+      bucketSize = None,
+      collation = None,
+      wildcardProjection = None,
       version = None,
       partialFilter = None,
       options = BSONDocument.empty)
