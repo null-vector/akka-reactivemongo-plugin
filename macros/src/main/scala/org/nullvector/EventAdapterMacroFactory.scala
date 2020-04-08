@@ -6,10 +6,6 @@ import scala.reflect.macros.blackbox
 
 private object EventAdapterMacroFactory {
 
-  implicit class MapOnPair[+T1, +T2](pair: (T1, T2)) {
-    def map[A1, A2](f: (T1, T2) => (A1, A2)): (A1, A2) = f(pair._1, pair._2)
-  }
-
   private val supportedClassTypes = List(
     "scala.Option",
     "scala.collection.immutable.List",
