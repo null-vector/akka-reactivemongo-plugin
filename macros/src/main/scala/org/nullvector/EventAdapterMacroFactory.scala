@@ -83,6 +83,8 @@ private object EventAdapterMacroFactory {
                               (caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
     import context.universe._
 
+    def isSupprtedTrait(aTypeClass: ClassSymbol) = aTypeClass.isTrait && aTypeClass.isSealed && !aTypeClass.fullName.startsWith("scala")
+
     def extaracCaseClassesFromSupportedTypeClasses(classType: Type): List[Type] = {
       if (supportedClassTypes.contains(classType.typeSymbol.fullName)) classType.typeArgs.collect {
         case argType if argType.typeSymbol.asClass.isCaseClass => List(classType, argType)
@@ -95,10 +97,13 @@ private object EventAdapterMacroFactory {
         caseType.decls.toList
           .collect { case method: MethodSymbol if method.isCaseAccessor => method.returnType }
           .collect {
-            case aType if aType.typeSymbol.asClass.isCaseClass => List(extractCaseTypes(context)(aType))
+            case aType if aType.typeSymbol.asClass.isCaseClass || isSupprtedTrait(aType.typeSymbol.asClass) => List(extractCaseTypes(context)(aType))
             case aType => extaracCaseClassesFromSupportedTypeClasses(aType).map(arg => extractCaseTypes(context)(arg))
           }.flatten
       )
+    }
+    else if (isSupprtedTrait(caseType.typeSymbol.asClass)) {
+      Tree(caseType, caseType.typeSymbol.asClass.knownDirectSubclasses.map(aType => extractCaseTypes(context)(aType.asClass.toType)).toList)
     }
     else Tree.empty
   }

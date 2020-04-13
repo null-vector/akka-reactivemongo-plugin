@@ -1,9 +1,11 @@
 package org.nullvector
 
 import akka.actor.ActorSystem
+import org.nullvector.domin._
 import org.scalatest.Matchers._
 import org.scalatest._
-import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, BSONDocumentReader, BSONDocumentWriter, BSONReader, BSONString, BSONValue, BSONWriter, Macros}
+import reactivemongo.api.bson.MacroConfiguration.Aux
+import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler, BSONDocumentReader, BSONDocumentWriter, BSONReader, BSONString, BSONValue, BSONWriter, FieldNaming, MacroConfiguration, MacroOptions, Macros, TypeNaming}
 
 import scala.util.{Success, Try}
 
@@ -59,8 +61,8 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     val eventAdapter = EventAdatpterFactory.adapt[I]("Ied", justForTestTags)
 
-    eventAdapter.tags("A") should contain ("TagA")
-    eventAdapter.tags("x") should contain ("TagN")
+    eventAdapter.tags("A") should contain("TagA")
+    eventAdapter.tags("x") should contain("TagN")
     val anInstance = I(K("k"))
     eventAdapter.payloadToBson(anInstance)
       .getAsOpt[BSONDocument]("k").get
@@ -88,39 +90,17 @@ class EventAdapterFactorySpec extends FlatSpec {
     payload.m.head._2 shouldBe "Value_A"
   }
 
-}
+  it should "mapping sealed trit familly" in {
+    val distanceFromEarthAndMars = PlanetDistanceBetweenEarth(and = Mars, kilometers = 209050000.0)
 
-case class A(b: B, c: C, d: D, js: Seq[J])
+    implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+    val eventAdapter = EventAdatpterFactory.adapt[PlanetDistanceBetweenEarth]("x")
 
-case class B(f: Set[F], g: G)
-
-case class C(s: String, m: Map[String, Seq[J]])
-
-case class D(i: Int, m: Map[String, H] = Map.empty)
-
-case class F(maybeC: Option[C])
-
-case class G(ds: List[D])
-
-case class H(d: BigDecimal)
-
-case class J(s: String)
-
-case class I(k: K)
-
-case class K(s: String)
-
-case class L(m: Map[Day, String], day: Day)
-
-sealed trait Day
-
-object Day {
-  def apply(name: String): Day = name match {
-    case "Monday" => Monday
-    case "Sunday" => Sunday
+    val document = eventAdapter.payloadToBson(distanceFromEarthAndMars)
+    document.getAsOpt[BSONDocument]("and").get.getAsOpt[String]("_type").get should be ("Mars")
+    eventAdapter.bsonToPayload(document).and should be (Mars)
   }
+
 }
 
-case object Monday extends Day
 
-case object Sunday extends Day

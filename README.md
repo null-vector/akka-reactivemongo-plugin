@@ -85,6 +85,17 @@ You can also add tags asociated to the Event:
 ```scala
 val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", Set("Tag_1", "Tag_2"))
 ```
+Traits famlily (`sealed trait`), aka: sum types, are mapped automatically:
+```scala
+sealed trait InvoceLineType
+case object ProductLine extends InvoiceLineType
+...
+case class InvoiceLine(lineType: InvoceLineType, ...)
+case class InvoiceLineAdded(line: InvoiceLine)
+...
+implicit val conf = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+val eventAdapter = EventAdapterFactory.adapt[InvoceLineAdded](withManifest = "InvoiceLineAdded")
+```
 
 ## Persistence Id
 By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
