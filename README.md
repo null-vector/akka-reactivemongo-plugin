@@ -87,10 +87,10 @@ val eventAdapter = EventAdapterFactory.adapt[Type4](withManifest = "SomeEvent", 
 ```
 Traits famlily (`sealed trait`), aka: sum types, are mapped automatically:
 ```scala
-sealed trait InvoceLineType
+sealed trait InvoiceLineType
 case object ProductLine extends InvoiceLineType
 ...
-case class InvoiceLine(lineType: InvoceLineType, ...)
+case class InvoiceLine(lineType: InvoiceLineType, ...)
 case class InvoiceLineAdded(line: InvoiceLine)
 ...
 implicit val conf = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
