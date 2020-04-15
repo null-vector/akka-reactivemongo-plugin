@@ -12,7 +12,7 @@ import scala.util.{Success, Try}
 class EventAdapterFactorySpec extends FlatSpec {
 
   it should "create a complex mapping" in {
-    val eventAdapter = EventAdatpterFactory.adapt[A]("Aed")
+    val eventAdapter = EventAdapterFactory.adapt[A]("Aed")
 
     val anInstance = A(
       B(Set(F(Some(C("Hola", Map("2" -> Seq(J("j"))))))),
@@ -42,7 +42,7 @@ class EventAdapterFactorySpec extends FlatSpec {
       case BSONDocument(_) => BSONDocument("s" -> "Reader Overrided")
     }: PartialFunction[BSONDocument, BSONDocument])
 
-    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied")
+    val eventAdapter = EventAdapterFactory.adapt[I]("Ied")
     val anInstance = I(K("k"))
     val document = eventAdapter.payloadToBson(anInstance)
     eventAdapter.bsonToPayload(document).k.s shouldBe "Reader Overrided"
@@ -59,7 +59,7 @@ class EventAdapterFactorySpec extends FlatSpec {
       case _ => Set("TagN")
     }
 
-    val eventAdapter = EventAdatpterFactory.adapt[I]("Ied", justForTestTags)
+    val eventAdapter = EventAdapterFactory.adapt[I]("Ied", justForTestTags)
 
     eventAdapter.tags("A") should contain("TagA")
     eventAdapter.tags("x") should contain("TagN")
@@ -81,7 +81,7 @@ class EventAdapterFactorySpec extends FlatSpec {
     }
 
     val tags = Set("aTag")
-    val eventAdapter = EventAdatpterFactory.adapt[L]("Led", tags)
+    val eventAdapter = EventAdapterFactory.adapt[L]("Led", tags)
     val document = eventAdapter.payloadToBson(L(Map(Monday -> "A"), Sunday))
     val payload = eventAdapter.bsonToPayload(document)
 
@@ -94,11 +94,23 @@ class EventAdapterFactorySpec extends FlatSpec {
     val distanceFromEarthAndMars = PlanetDistanceBetweenEarth(and = Mars, kilometers = 209050000.0)
 
     implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
-    val eventAdapter = EventAdatpterFactory.adapt[PlanetDistanceBetweenEarth]("x")
+    val eventAdapter = EventAdapterFactory.adapt[PlanetDistanceBetweenEarth]("x")
 
     val document = eventAdapter.payloadToBson(distanceFromEarthAndMars)
     document.getAsOpt[BSONDocument]("and").get.getAsOpt[String]("_type").get should be ("Mars")
     eventAdapter.bsonToPayload(document).and should be (Mars)
+  }
+
+  it should "mapping sealed trit familly as root event" in {
+    val jupiter: SolarPlanet = Jupiter
+
+    implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+    val eventAdapter = EventAdapterFactory.adapt[SolarPlanet]("x")
+
+    val document = eventAdapter.payloadToBson(jupiter)
+
+    document.getAsOpt[String]("_type").get should be ("Jupiter")
+    eventAdapter.bsonToPayload(document) should be (Jupiter)
   }
 
 }

@@ -1,6 +1,6 @@
 package org.nullvector
 
-object EventAdatpterFactory {
+object EventAdapterFactory {
 
   def adapt[E](withManifest: String): EventAdapter[E] = macro EventAdapterMacroFactory.adapt[E]
 
