@@ -2,10 +2,11 @@ package org.nullvector
 
 import akka.actor.ActorSystem
 import org.nullvector.domin._
+import org.nullvector.domin.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
-import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler, BSONDocumentReader, BSONDocumentWriter, BSONReader, BSONString, BSONValue, BSONWriter, FieldNaming, MacroConfiguration, MacroOptions, Macros, TypeNaming}
+import reactivemongo.api.bson.{BSONDocument, BSONDocumentReader, BSONReader, BSONString, BSONValue, BSONWriter, MacroConfiguration, MacroOptions, Macros, TypeNaming}
 
 import scala.util.{Success, Try}
 
@@ -106,6 +107,21 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
     val eventAdapter = EventAdapterFactory.adapt[SolarPlanet]("x")
+
+    val document = eventAdapter.payloadToBson(jupiter)
+
+    document.getAsOpt[String]("_type").get should be ("Jupiter")
+    eventAdapter.bsonToPayload(document) should be (Jupiter)
+  }
+
+  it should "create EventAdapter by hand" in {
+    val jupiter: SolarPlanet = Jupiter
+
+    implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+
+    implicit val a: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
+
+    val eventAdapter = new EventAdapterMapping[SolarPlanet]("planet")
 
     val document = eventAdapter.payloadToBson(jupiter)
 

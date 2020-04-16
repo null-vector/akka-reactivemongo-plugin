@@ -7,7 +7,7 @@ lazy val rxmongoVersion = "0.20.3"
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
-  version := "1.3.8",
+  version := "1.3.9",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersions,
   scalacOptions := Seq(
@@ -51,7 +51,7 @@ lazy val commonSettings = Seq(
 
 lazy val core = (project in file("core"))
   .dependsOn(
-    macros % "compile-internal, test-internal",
+    macros,
     api)
   .settings(
     commonSettings,

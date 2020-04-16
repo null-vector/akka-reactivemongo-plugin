@@ -1,11 +1,13 @@
 package org
 
+import reactivemongo.api.bson.BSONDocumentHandler
 import reactivemongo.api.commands.{MultiBulkWriteResult, WriteResult}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 package object nullvector {
+  type BSONDocumentMapping[T] = BSONDocumentHandler[T]
 
   implicit def futureWriteResult2Try(futureResult: Future[WriteResult])(implicit ec: ExecutionContext): Future[Try[Unit]] = {
     futureResult.map(result =>
