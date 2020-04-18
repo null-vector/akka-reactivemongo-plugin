@@ -6,7 +6,7 @@ import org.nullvector.domin.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth, 
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
-import reactivemongo.api.bson.{BSONDocument, BSONDocumentReader, BSONReader, BSONString, BSONValue, BSONWriter, MacroConfiguration, MacroOptions, Macros, TypeNaming}
+import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentReader, BSONReader, BSONString, BSONValue, BSONWriter, MacroConfiguration, MacroOptions, Macros, TypeNaming}
 
 import scala.util.{Success, Try}
 
@@ -98,8 +98,8 @@ class EventAdapterFactorySpec extends FlatSpec {
     val eventAdapter = EventAdapterFactory.adapt[PlanetDistanceBetweenEarth]("x")
 
     val document = eventAdapter.payloadToBson(distanceFromEarthAndMars)
-    document.getAsOpt[BSONDocument]("and").get.getAsOpt[String]("_type").get should be ("Mars")
-    eventAdapter.bsonToPayload(document).and should be (Mars)
+    document.getAsOpt[BSONDocument]("and").get.getAsOpt[String]("_type").get should be("Mars")
+    eventAdapter.bsonToPayload(document).and should be(Mars)
   }
 
   it should "mapping sealed trit familly as root event" in {
@@ -110,8 +110,8 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     val document = eventAdapter.payloadToBson(jupiter)
 
-    document.getAsOpt[String]("_type").get should be ("Jupiter")
-    eventAdapter.bsonToPayload(document) should be (Jupiter)
+    document.getAsOpt[String]("_type").get should be("Jupiter")
+    eventAdapter.bsonToPayload(document) should be(Jupiter)
   }
 
   it should "create EventAdapter by hand" in {
@@ -125,8 +125,23 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     val document = eventAdapter.payloadToBson(jupiter)
 
-    document.getAsOpt[String]("_type").get should be ("Jupiter")
-    eventAdapter.bsonToPayload(document) should be (Jupiter)
+    document.getAsOpt[String]("_type").get should be("Jupiter")
+    eventAdapter.bsonToPayload(document) should be(Jupiter)
+  }
+
+  it should "transform before read doc" in {
+
+    implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+
+    implicit val mapping = EventAdapterFactory.mappingOf[SolarPlanet]{ doc: BSONDocument =>
+      doc.getAsOpt[String]("className") match {
+        case Some(name) => doc ++ BSONDocument("_type" -> name)
+        case None => doc
+      }
+    }
+
+    BSON.readDocument[SolarPlanet](BSONDocument("className" -> "Mars")).get shouldBe a[Mars.type]
+
   }
 
 }

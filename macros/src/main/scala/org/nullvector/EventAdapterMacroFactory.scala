@@ -1,6 +1,6 @@
 package org.nullvector
 
-import reactivemongo.api.bson.{BSONReader, BSONWriter}
+import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, BSONReader, BSONWriter}
 
 import scala.reflect.macros.blackbox
 
@@ -9,33 +9,51 @@ private object EventAdapterMacroFactory {
   def mappingOf[E](context: blackbox.Context)(implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[BSONDocumentMapping[E]] = {
     import context.universe._
     val (imports, implicits) = implicitMappingsFor(context)(eventTypeTag.tpe, noImplicitForMainType = true)
+
     val code =
       q"""
           import reactivemongo.api.bson._
-          import org.nullvector._
           ..$imports
           ..$implicits
+          Macros.handler[${eventTypeTag.tpe}]
        """
-    //println(code)
+    println(code)
+    context.Expr[BSONDocumentMapping[E]](code)
+  }
+
+  def mappingOfWithBeforeRead[E](context: blackbox.Context)(beforeRead: context.Expr[BSONDocument => BSONDocument])
+                                (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[BSONDocumentMapping[E]] = {
+    import context.universe._
+    val (imports, implicits) = implicitMappingsFor(context)(eventTypeTag.tpe, noImplicitForMainType = true)
+
+    val code =
+      q"""
+          import reactivemongo.api.bson._
+          ..$imports
+          ..$implicits
+          val handler = Macros.handler[${eventTypeTag.tpe}]
+          JoinBeforeRead[${eventTypeTag.tpe}](handler, $beforeRead)
+       """
+    println(code)
     context.Expr[BSONDocumentMapping[E]](code)
   }
 
   def adaptWithTags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Set[String]])
                       (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new EventAdapterMapping($withManifest, $tags)")
+    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
   }
 
   def adaptWithPayload2Tags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Any => Set[String]])
                               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new EventAdapterMapping($withManifest, $tags)")
+    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
   }
 
   def adapt[E](context: blackbox.Context)(withManifest: context.Expr[String])
               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new EventAdapterMapping($withManifest)")
+    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest)")
   }
 
   private def buildAdapterExpression[E](context: blackbox.Context)
@@ -50,12 +68,11 @@ private object EventAdapterMacroFactory {
     val code =
       q"""
           import reactivemongo.api.bson._
-          import org.nullvector._
           ..$imports
           ..$handlers
           $createEventAdapter
       """
-    //println(code)hhh
+    println(code)
     context.Expr[EventAdapter[E]](code)
   }
 
@@ -79,16 +96,27 @@ private object EventAdapterMacroFactory {
       }
     }
 
-    val (mappedTypes, mappingCode) = caseClassTypes.collect {
-      case caseType if noImplicitForMainType & caseType =:= eventType =>
-        caseType -> q"Macros.handler[$caseType]"
-      case caseType if context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).isEmpty && context.inferImplicitValue(appliedType(bsonReaderType, caseType)).isEmpty =>
-        caseType -> q"private implicit val ${TermName(context.freshName())}: BSONDocumentHandler[${caseType}] = Macros.handler[${caseType}]"
-      case caseType if !context.inferImplicitValue(appliedType(bsonReaderType, caseType)).isEmpty =>
-        caseType -> q"private implicit val ${TermName(context.freshName())}: BSONWriter[${caseType}] = Macros.handler[${caseType}]"
-      case caseType if !context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).isEmpty =>
-        caseType -> q"private implicit val ${TermName(context.freshName())}: BSONReader[${caseType}] = Macros.handler[${caseType}]"
-    }.unzip
+    println(s"\n\n\nAnalizando $eventType")
+
+    val (mappedTypes, mappingCode) = caseClassTypes.flatMap { caseType =>
+      val isWriterDefined = context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).nonEmpty
+      val isReaderDefined = context.inferImplicitValue(appliedType(bsonReaderType, caseType)).nonEmpty
+
+      isReaderDefined -> isWriterDefined match {
+        case (_, _) if noImplicitForMainType & caseType =:= eventType => None
+        case (false, false) =>
+          Some(caseType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${caseType}] with BSONDocumentWriter[${caseType}] = Macros.handler[${caseType}]")
+        case (true, false) =>
+          Some(caseType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentWriter[${caseType}] = Macros.handler[${caseType}]")
+        case (false, true) =>
+          Some(caseType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${caseType}] = Macros.handler[${caseType}]")
+        case _ => None
+      }
+    }
+      .unzip
     (
       mappedTypes
         .flatMap(tpe => findPackage(tpe.typeSymbol))
@@ -99,32 +127,45 @@ private object EventAdapterMacroFactory {
   }
 
   private def extractCaseTypes(context: blackbox.Context)
-                              (caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
+                              (rootType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
     import context.universe._
 
-    def isSupprtedTrait(aTypeClass: ClassSymbol) = aTypeClass.isTrait && aTypeClass.isSealed && !aTypeClass.fullName.startsWith("scala")
+    def extractAll(caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
 
-    def extaracCaseClassesFromTypeArgs(classType: Type): List[Type] = {
-      classType.typeArgs.collect {
-        case argType if argType.typeSymbol.asClass.isCaseClass => List(classType, argType)
-        case t => extaracCaseClassesFromTypeArgs(t)
-      }.flatten
+      val bsonWrtterType = context.typeOf[BSONWriter[_]]
+      val bsonReaderType = context.typeOf[BSONReader[_]]
+
+      def isSupprtedTrait(aTypeClass: ClassSymbol) = aTypeClass.isTrait && aTypeClass.isSealed && !aTypeClass.fullName.startsWith("scala")
+
+      def extaracCaseClassesFromTypeArgs(classType: Type): List[Type] = {
+        classType.typeArgs.collect {
+          case argType if argType.typeSymbol.asClass.isCaseClass => List(classType, argType)
+          case t => extaracCaseClassesFromTypeArgs(t)
+        }.flatten
+      }
+
+      if (caseType.typeSymbol.asClass.isCaseClass) {
+        Tree(caseType,
+          caseType.decls.toList
+            .collect { case method: MethodSymbol if method.isCaseAccessor => method.returnType }
+            .collect {
+              case aType if aType.typeSymbol.asClass.isCaseClass || isSupprtedTrait(aType.typeSymbol.asClass) => List(extractAll(aType))
+              case aType => extaracCaseClassesFromTypeArgs(aType).map(arg => extractAll(arg))
+            }.flatten
+        )
+      }
+      else if (isSupprtedTrait(caseType.typeSymbol.asClass)) {
+        val writerNotDefined = context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).isEmpty
+        val readerNotDefined = context.inferImplicitValue(appliedType(bsonReaderType, caseType)).isEmpty
+
+        if ((writerNotDefined && readerNotDefined) || caseType =:= rootType)
+          Tree(caseType, caseType.typeSymbol.asClass.knownDirectSubclasses.map(aType => extractAll(aType.asClass.toType)).toList)
+        else Tree.empty
+      }
+      else Tree.empty
     }
 
-    if (caseType.typeSymbol.asClass.isCaseClass) {
-      Tree(caseType,
-        caseType.decls.toList
-          .collect { case method: MethodSymbol if method.isCaseAccessor => method.returnType }
-          .collect {
-            case aType if aType.typeSymbol.asClass.isCaseClass || isSupprtedTrait(aType.typeSymbol.asClass) => List(extractCaseTypes(context)(aType))
-            case aType => extaracCaseClassesFromTypeArgs(aType).map(arg => extractCaseTypes(context)(arg))
-          }.flatten
-      )
-    }
-    else if (isSupprtedTrait(caseType.typeSymbol.asClass)) {
-      Tree(caseType, caseType.typeSymbol.asClass.knownDirectSubclasses.map(aType => extractCaseTypes(context)(aType.asClass.toType)).toList)
-    }
-    else Tree.empty
+    extractAll(rootType)
   }
 
 }

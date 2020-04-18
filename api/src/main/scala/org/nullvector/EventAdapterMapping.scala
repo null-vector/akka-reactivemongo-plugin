@@ -1,19 +1,19 @@
 package org.nullvector
 
-import reactivemongo.api.bson.{BSON, BSONDocument}
+import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentReader, BSONDocumentWriter}
 
 import scala.reflect.ClassTag
 
 class EventAdapterMapping[E](val manifest: String, fTags: Any => Set[String])
-                            (implicit mapping: BSONDocumentMapping[E], ev: ClassTag[E]
+                            (implicit mapping: BSONDocumentReader[E] with BSONDocumentWriter[E], ev: ClassTag[E]
                             ) extends EventAdapter[E] {
 
   def this(manifest: String)
-          (implicit mapping: BSONDocumentMapping[E], ev: ClassTag[E]
+          (implicit mapping: BSONDocumentReader[E] with BSONDocumentWriter[E], ev: ClassTag[E]
           ) = this(manifest, _ => Set.empty)
 
   def this(manifest: String, tags: Set[String])
-          (implicit mapping: BSONDocumentMapping[E], ev: ClassTag[E]
+          (implicit mapping: BSONDocumentReader[E] with BSONDocumentWriter[E], ev: ClassTag[E]
           ) = this(manifest, _ => tags)
 
   override def tags(payload: Any): Set[String] = fTags(payload)
