@@ -17,7 +17,7 @@ private object EventAdapterMacroFactory {
           ..$implicits
           Macros.handler[${eventTypeTag.tpe}]
        """
-    println(code)
+    //println(code)
     context.Expr[BSONDocumentMapping[E]](code)
   }
 
@@ -34,7 +34,7 @@ private object EventAdapterMacroFactory {
           val handler = Macros.handler[${eventTypeTag.tpe}]
           JoinBeforeRead[${eventTypeTag.tpe}](handler, $beforeRead)
        """
-    println(code)
+    //println(code)
     context.Expr[BSONDocumentMapping[E]](code)
   }
 
@@ -72,7 +72,7 @@ private object EventAdapterMacroFactory {
           ..$handlers
           $createEventAdapter
       """
-    println(code)
+    //println(code)
     context.Expr[EventAdapter[E]](code)
   }
 
@@ -96,7 +96,7 @@ private object EventAdapterMacroFactory {
       }
     }
 
-    println(s"\n\n\nAnalizando $eventType")
+    //println(s"\n\n\nAnalizando $eventType")
 
     val (mappedTypes, mappingCode) = caseClassTypes.flatMap { caseType =>
       val isWriterDefined = context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).nonEmpty

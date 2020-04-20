@@ -62,6 +62,11 @@ And then you have to register the new Adapter:
 
   serializer.addEventAdapter(new UserAddedEventAdapter)
 ```
+A more simple way to create an event adapter by hand is using ``EventAdapterMapping`:
+```scala
+    implicit val mapping: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
+    val eventAdapter = new EventAdapterMapping[SolarPlanet](manifest = "planet")
+```
 ## EventAdapter Factory
 To avoid writing boilerplate code creating Event Adapters, we can use the `EventAdapterFactory`:
 ```scala
