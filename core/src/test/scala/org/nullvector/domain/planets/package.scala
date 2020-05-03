@@ -1,4 +1,4 @@
-package org.nullvector.domin
+package org.nullvector.domain
 
 package object planets {
 

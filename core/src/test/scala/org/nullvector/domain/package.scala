@@ -1,6 +1,6 @@
 package org.nullvector
 
-package object domin {
+package object domain {
 
   case class A(b: B, c: C, d: D, js: Seq[J])
 
@@ -38,4 +38,20 @@ package object domin {
 
   case object Sunday extends Day
 
+
+  case class Money(amount: BigDecimal, currency: Money.Currency) {
+
+    def +(aMoney: Money): Money = copy(amount + aMoney.amount)
+
+    def *(factor: BigDecimal): Money = copy(amount * factor)
+  }
+
+  object Money extends Enumeration {
+    type Currency = Value
+    val ARS, BRL, USD, MXN = Value
+
+    def ars(amount: BigDecimal): Money = Money(amount, ARS)
+  }
+
+  case class Product(name: String, unitPrice: Money)
 }

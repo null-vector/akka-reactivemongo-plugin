@@ -1,8 +1,9 @@
 package org.nullvector
 
 import akka.actor.ActorSystem
-import org.nullvector.domin._
-import org.nullvector.domin.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
+import org.nullvector.domain.Money.Currency
+import org.nullvector.domain._
+import org.nullvector.domain.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
@@ -130,18 +131,29 @@ class EventAdapterFactorySpec extends FlatSpec {
   }
 
   it should "transform before read doc" in {
-
     implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
-
-    implicit val mapping = EventAdapterFactory.mappingOf[SolarPlanet]{ doc: BSONDocument =>
+    implicit val mapping = EventAdapterFactory.mappingOf[SolarPlanet] { doc: BSONDocument =>
       doc.getAsOpt[String]("className") match {
         case Some(name) => doc ++ BSONDocument("_type" -> name)
         case None => doc
       }
     }
-
     BSON.readDocument[SolarPlanet](BSONDocument("className" -> "Mars")).get shouldBe a[Mars.type]
+  }
 
+  it should "map a case class with Enumerations" in {
+    implicit val m = EventAdapterFactory.mappingOf[Product]
+    val product = Product("Papitas", Money.ars(7654.345))
+
+    val doc = BSON.writeDocument(product).get
+    println(BSONDocument.pretty(doc))
+    BSON.readDocument[Product](doc).get shouldBe product
+  }
+
+  it should "direct enum mapping" in {
+    val enumMapping = EventAdapterFactory.enumMappingOf[Currency]
+    enumMapping.writeTry(Money.ARS).get shouldBe BSONString("ARS")
+    enumMapping.readTry(BSONString("MXN")).get shouldBe Money.MXN
   }
 
 }

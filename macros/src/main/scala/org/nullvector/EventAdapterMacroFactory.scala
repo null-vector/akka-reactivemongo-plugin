@@ -41,25 +41,23 @@ private object EventAdapterMacroFactory {
   def adaptWithTags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Set[String]])
                       (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
+    buildAdapterExpression(context)(q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
   }
 
   def adaptWithPayload2Tags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Any => Set[String]])
                               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
+    buildAdapterExpression(context)(q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
   }
 
   def adapt[E](context: blackbox.Context)(withManifest: context.Expr[String])
               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
-    buildAdapterExpression(context)(withManifest, q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest)")
+    buildAdapterExpression(context)(q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest)")
   }
 
   private def buildAdapterExpression[E](context: blackbox.Context)
-                                       (withManifest: context.Expr[String],
-                                        createEventAdapter: context.universe.Tree
-                                       )
+                                       (createEventAdapter: context.universe.Tree)
                                        (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
 
     import context.universe._
@@ -83,6 +81,7 @@ private object EventAdapterMacroFactory {
 
     val bsonWrtterType = context.typeOf[BSONWriter[_]]
     val bsonReaderType = context.typeOf[BSONReader[_]]
+    val enumType = context.typeOf[Enumeration]
 
     val caseClassTypes = extractCaseTypes(context)(eventType).toList.reverse.distinct
 
@@ -96,23 +95,34 @@ private object EventAdapterMacroFactory {
       }
     }
 
-    //println(s"\n\n\nAnalizando $eventType")
+    val (mappedTypes, mappingCode) = caseClassTypes.flatMap { aType =>
+      val isWriterDefined = context.inferImplicitValue(appliedType(bsonWrtterType, aType)).nonEmpty
+      val isReaderDefined = context.inferImplicitValue(appliedType(bsonReaderType, aType)).nonEmpty
+      val isEnumType = scala.util.Try(aType.typeSymbol.owner.asType.toType).map(_ =:= enumType).getOrElse(false)
 
-    val (mappedTypes, mappingCode) = caseClassTypes.flatMap { caseType =>
-      val isWriterDefined = context.inferImplicitValue(appliedType(bsonWrtterType, caseType)).nonEmpty
-      val isReaderDefined = context.inferImplicitValue(appliedType(bsonReaderType, caseType)).nonEmpty
-
-      isReaderDefined -> isWriterDefined match {
-        case (_, _) if noImplicitForMainType & caseType =:= eventType => None
-        case (false, false) =>
-          Some(caseType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${caseType}] with BSONDocumentWriter[${caseType}] = Macros.handler[${caseType}]")
-        case (true, false) =>
-          Some(caseType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentWriter[${caseType}] = Macros.handler[${caseType}]")
-        case (false, true) =>
-          Some(caseType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${caseType}] = Macros.handler[${caseType}]")
+      (isReaderDefined, isWriterDefined, isEnumType) match {
+        case (_, _, _) if noImplicitForMainType & aType =:= eventType => None
+        case (false, false, false) =>
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] with BSONDocumentWriter[${aType}] = Macros.handler[${aType}]")
+        case (true, false, false) =>
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentWriter[${aType}] = Macros.handler[${aType}]")
+        case (false, true, false) =>
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] = Macros.handler[${aType}]")
+        case (false, false, true) =>
+          val enumMapping = EnumMacroFactory(context)(aType)
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] with BSONWriter[${aType}] = $enumMapping")
+        case (true, false, true) =>
+          val enumMapping = EnumMacroFactory(context)(aType)
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONWriter[${aType}] = $enumMapping")
+        case (false, true, true) =>
+          val enumMapping = EnumMacroFactory(context)(aType)
+          Some(aType ->
+            q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] = $enumMapping")
         case _ => None
       }
     }
@@ -129,12 +139,11 @@ private object EventAdapterMacroFactory {
   private def extractCaseTypes(context: blackbox.Context)
                               (rootType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
     import context.universe._
+    val bsonWrtterType = context.typeOf[BSONWriter[_]]
+    val bsonReaderType = context.typeOf[BSONReader[_]]
+    val enumType = context.typeOf[Enumeration]
 
     def extractAll(caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
-
-      val bsonWrtterType = context.typeOf[BSONWriter[_]]
-      val bsonReaderType = context.typeOf[BSONReader[_]]
-
       def isSupprtedTrait(aTypeClass: ClassSymbol) = aTypeClass.isTrait && aTypeClass.isSealed && !aTypeClass.fullName.startsWith("scala")
 
       def extaracCaseClassesFromTypeArgs(classType: Type): List[Type] = {
@@ -149,6 +158,8 @@ private object EventAdapterMacroFactory {
           caseType.decls.toList
             .collect { case method: MethodSymbol if method.isCaseAccessor => method.returnType }
             .collect {
+              case aType if aType.typeSymbol.owner.isType &&
+                aType.typeSymbol.owner.asType.toType =:= enumType => List(Tree(aType))
               case aType if aType.typeSymbol.asClass.isCaseClass || isSupprtedTrait(aType.typeSymbol.asClass) => List(extractAll(aType))
               case aType => extaracCaseClassesFromTypeArgs(aType).map(arg => extractAll(arg))
             }.flatten

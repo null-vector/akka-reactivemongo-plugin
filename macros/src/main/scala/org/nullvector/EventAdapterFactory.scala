@@ -1,6 +1,6 @@
 package org.nullvector
 
-import reactivemongo.api.bson.BSONDocument
+import reactivemongo.api.bson.{BSONDocument, BSONReader, BSONWriter}
 
 object EventAdapterFactory {
 
@@ -14,4 +14,5 @@ object EventAdapterFactory {
 
   def adapt[E](withManifest: String, tags: Set[String]): EventAdapter[E] = macro EventAdapterMacroFactory.adaptWithTags[E]
 
+  def enumMappingOf[E]: BSONReader[E] with BSONWriter[E] = macro EnumMacroFactory.enumMappingOf[E]
 }
