@@ -54,4 +54,8 @@ package object domain {
   }
 
   case class Product(name: String, unitPrice: Money)
+
+  final case class OrderId(val id: Int) extends AnyVal
+  case class Order(orderId: OrderId, products: Seq[Product])
+
 }

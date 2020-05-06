@@ -15,4 +15,6 @@ object EventAdapterFactory {
   def adapt[E](withManifest: String, tags: Set[String]): EventAdapter[E] = macro EventAdapterMacroFactory.adaptWithTags[E]
 
   def enumMappingOf[E]: BSONReader[E] with BSONWriter[E] = macro EnumMacroFactory.enumMappingOf[E]
+
+  def valueMappingOf[V <: AnyVal]: BSONReader[V] with BSONWriter[V] = macro ValueClassMacroFactory.valueMappingOf[V]
 }

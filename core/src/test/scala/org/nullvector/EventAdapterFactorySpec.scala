@@ -7,7 +7,7 @@ import org.nullvector.domain.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth,
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
-import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentReader, BSONReader, BSONString, BSONValue, BSONWriter, MacroConfiguration, MacroOptions, Macros, TypeNaming}
+import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentReader, BSONInteger, BSONReader, BSONString, BSONValue, BSONWriter, MacroConfiguration, MacroOptions, Macros, TypeNaming}
 
 import scala.util.{Success, Try}
 
@@ -154,6 +154,21 @@ class EventAdapterFactorySpec extends FlatSpec {
     val enumMapping = EventAdapterFactory.enumMappingOf[Currency]
     enumMapping.writeTry(Money.ARS).get shouldBe BSONString("ARS")
     enumMapping.readTry(BSONString("MXN")).get shouldBe Money.MXN
+  }
+
+  it should "value class mapping" in {
+    val valueMap = EventAdapterFactory.valueMappingOf[OrderId]
+    valueMap.writeTry(new OrderId(24556)).get shouldBe BSONInteger(24556)
+    valueMap.readTry(BSONInteger(24556)).get shouldBe new OrderId(24556)
+  }
+
+  it should "value class in product" in {
+    //implicit val valueMap = EventAdapterFactory.valueMappingOf[OrderId]
+    implicit val orderMapping = EventAdapterFactory.mappingOf[Order]
+
+    val order = Order(OrderId(12767), Seq(Product("test", Money.ars(345))))
+    val doc = BSON.writeDocument(order).get
+    BSON.readDocument[Order](doc).get shouldBe order
   }
 
 }

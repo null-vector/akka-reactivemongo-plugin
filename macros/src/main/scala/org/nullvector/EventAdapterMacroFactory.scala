@@ -82,6 +82,7 @@ private object EventAdapterMacroFactory {
     val bsonWrtterType = context.typeOf[BSONWriter[_]]
     val bsonReaderType = context.typeOf[BSONReader[_]]
     val enumType = context.typeOf[Enumeration]
+    val anyValType = context.typeOf[AnyVal]
 
     val caseClassTypes = extractCaseTypes(context)(eventType).toList.reverse.distinct
 
@@ -99,30 +100,47 @@ private object EventAdapterMacroFactory {
       val isWriterDefined = context.inferImplicitValue(appliedType(bsonWrtterType, aType)).nonEmpty
       val isReaderDefined = context.inferImplicitValue(appliedType(bsonReaderType, aType)).nonEmpty
       val isEnumType = scala.util.Try(aType.typeSymbol.owner.asType.toType).map(_ =:= enumType).getOrElse(false)
+      val isAnyVal = aType <:< anyValType
 
-      (isReaderDefined, isWriterDefined, isEnumType) match {
-        case (_, _, _) if noImplicitForMainType & aType =:= eventType => None
-        case (false, false, false) =>
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] with BSONDocumentWriter[${aType}] = Macros.handler[${aType}]")
-        case (true, false, false) =>
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentWriter[${aType}] = Macros.handler[${aType}]")
-        case (false, true, false) =>
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] = Macros.handler[${aType}]")
-        case (false, false, true) =>
-          val enumMapping = EnumMacroFactory(context)(aType)
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] with BSONWriter[${aType}] = $enumMapping")
-        case (true, false, true) =>
-          val enumMapping = EnumMacroFactory(context)(aType)
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONWriter[${aType}] = $enumMapping")
-        case (false, true, true) =>
-          val enumMapping = EnumMacroFactory(context)(aType)
-          Some(aType ->
-            q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] = $enumMapping")
+      (isReaderDefined, isWriterDefined) match {
+        case (_, _) if noImplicitForMainType & aType =:= eventType => None
+
+        case (false, false) =>
+          Some(aType -> {
+            if (isEnumType) {
+              val enumMapping = EnumMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] with BSONWriter[${aType}] = $enumMapping"
+            } else if (isAnyVal) {
+              val valueMapping = ValueClassMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] with BSONWriter[${aType}] = $valueMapping"
+            } else
+              q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] with BSONDocumentWriter[${aType}] = Macros.handler[${aType}]"
+          })
+
+        case (true, false) =>
+          Some(aType -> {
+            if (isEnumType) {
+              val enumMapping = EnumMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONWriter[${aType}] = $enumMapping"
+            } else if (isAnyVal) {
+              val valueMapping = ValueClassMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONWriter[${aType}] = $valueMapping"
+            } else
+              q"private implicit val ${TermName(context.freshName())}: BSONDocumentWriter[${aType}] = Macros.handler[${aType}]"
+          })
+
+        case (false, true) =>
+          Some(aType -> {
+            if (isEnumType) {
+              val enumMapping = EnumMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] = $enumMapping"
+            } else if (isAnyVal) {
+              val valueMapping = ValueClassMacroFactory(context)(aType)
+              q"private implicit val ${TermName(context.freshName())}: BSONReader[${aType}] = $valueMapping"
+            } else
+              q"private implicit val ${TermName(context.freshName())}: BSONDocumentReader[${aType}] = Macros.handler[${aType}]"
+          })
+
         case _ => None
       }
     }
@@ -142,6 +160,7 @@ private object EventAdapterMacroFactory {
     val bsonWrtterType = context.typeOf[BSONWriter[_]]
     val bsonReaderType = context.typeOf[BSONReader[_]]
     val enumType = context.typeOf[Enumeration]
+    val anyValType = context.typeOf[AnyVal]
 
     def extractAll(caseType: context.universe.Type): org.nullvector.Tree[context.universe.Type] = {
       def isSupprtedTrait(aTypeClass: ClassSymbol) = aTypeClass.isTrait && aTypeClass.isSealed && !aTypeClass.fullName.startsWith("scala")
@@ -158,6 +177,7 @@ private object EventAdapterMacroFactory {
           caseType.decls.toList
             .collect { case method: MethodSymbol if method.isCaseAccessor => method.returnType }
             .collect {
+              case aType if aType <:< anyValType => List(Tree(aType))
               case aType if aType.typeSymbol.owner.isType &&
                 aType.typeSymbol.owner.asType.toType =:= enumType => List(Tree(aType))
               case aType if aType.typeSymbol.asClass.isCaseClass || isSupprtedTrait(aType.typeSymbol.asClass) => List(extractAll(aType))
