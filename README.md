@@ -5,7 +5,7 @@
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin support scala `2.12` and `2.13`, akka `2.6.1` and reactivemongo `0.18.x` and `0.19.x`.
+This plugin support scala `2.12` and `2.13`, akka `2.6.1` and reactivemongo `0.18.x` and `0.20.x`.
 
 Add in your `build.sbt` the following lines:
 ```scala
@@ -18,7 +18,7 @@ For reactivemongo `0.18.x` use:
 ```scala
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.x"
 ```
-For reactivemongo `0.19.x` use:
+For reactivemongo `0.20.x` use:
 
 [ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
 
@@ -62,7 +62,7 @@ And then you have to register the new Adapter:
 
   serializer.addEventAdapter(new UserAddedEventAdapter)
 ```
-A more simple way to create an event adapter by hand is using ``EventAdapterMapping`:
+A more simple way to create an event adapter by hand is using `EventAdapterMapping`:
 ```scala
     implicit val mapping: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
     val eventAdapter = new EventAdapterMapping[SolarPlanet](manifest = "planet")
