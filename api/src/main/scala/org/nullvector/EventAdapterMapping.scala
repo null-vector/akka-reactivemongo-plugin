@@ -4,7 +4,7 @@ import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentReader, BSONDocum
 
 import scala.reflect.ClassTag
 
-class EventAdapterMapping[E](val manifest: String, fTags: Any => Set[String])
+class EventAdapterMapping[E](val manifest: String, fTags: E => Set[String])
                             (implicit mapping: BSONDocumentReader[E] with BSONDocumentWriter[E], ev: ClassTag[E]
                             ) extends EventAdapter[E] {
 
@@ -16,7 +16,7 @@ class EventAdapterMapping[E](val manifest: String, fTags: Any => Set[String])
           (implicit mapping: BSONDocumentReader[E] with BSONDocumentWriter[E], ev: ClassTag[E]
           ) = this(manifest, _ => tags)
 
-  override def tags(payload: Any): Set[String] = fTags(payload)
+  override def tags(payload: E): Set[String] = fTags(payload)
 
   override def payloadToBson(payload: E): BSONDocument = BSON.writeDocument(payload).get
 

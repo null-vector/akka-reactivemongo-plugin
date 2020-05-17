@@ -10,7 +10,7 @@ object EventAdapterFactory {
 
   def mappingOf[T](beforeRead: BSONDocument => BSONDocument): BSONDocumentMapping[T] = macro EventAdapterMacroFactory.mappingOfWithBeforeRead[T]
 
-  def adapt[E](withManifest: String, tags: Any => Set[String]): EventAdapter[E] = macro EventAdapterMacroFactory.adaptWithPayload2Tags[E]
+  def adapt[E](withManifest: String, tags: E => Set[String]): EventAdapter[E] = macro EventAdapterMacroFactory.adaptWithPayload2Tags[E]
 
   def adapt[E](withManifest: String, tags: Set[String]): EventAdapter[E] = macro EventAdapterMacroFactory.adaptWithTags[E]
 

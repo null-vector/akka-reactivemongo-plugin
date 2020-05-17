@@ -44,7 +44,7 @@ private object EventAdapterMacroFactory {
     buildAdapterExpression(context)(q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")
   }
 
-  def adaptWithPayload2Tags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[Any => Set[String]])
+  def adaptWithPayload2Tags[E](context: blackbox.Context)(withManifest: context.Expr[String], tags: context.Expr[E => Set[String]])
                               (implicit eventTypeTag: context.WeakTypeTag[E]): context.Expr[EventAdapter[E]] = {
     import context.universe._
     buildAdapterExpression(context)(q"new org.nullvector.EventAdapterMapping[${eventTypeTag.tpe}]($withManifest, $tags)")

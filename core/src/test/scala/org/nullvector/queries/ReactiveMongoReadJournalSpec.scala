@@ -355,7 +355,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
     override val manifest: String = "some_event"
 
-    override def tags(payload: Any): Set[String] = payload match {
+    override def tags(payload: SomeEvent): Set[String] = payload match {
       case SomeEvent(name, _) if name.startsWith("lechuga") => Set("event_tag_1", "event_tag_2")
       case SomeEvent(name, _) if name.startsWith("tomate") => Set("event_tag_other")
       case _ => Set.empty

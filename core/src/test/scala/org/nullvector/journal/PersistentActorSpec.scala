@@ -139,7 +139,7 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   class AnEventEventAdapter extends EventAdapter[AnEvent] {
     override val manifest: String = "AnEvent"
 
-    override def tags(payload: Any): Set[String] = Set("tag_1", "tag_2")
+    override def tags(payload: AnEvent): Set[String] = Set("tag_1", "tag_2")
 
     private val anEventMapper: BSONDocumentHandler[AnEvent] = Macros.handler[AnEvent]
 

@@ -113,7 +113,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val manifest: String = "mi_lista_v1"
 
-    override def tags(payload: Any): Set[String] = Set("list_tag")
+    override def tags(payload: AList): Set[String] = Set("list_tag")
 
     override def payloadToBson(payload: AList): BSONDocument = BSONDocument("ints" -> payload.ints)
 
@@ -135,7 +135,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
     override val manifest: String = "mi_string_v1"
 
-    override def tags(payload: Any): Set[String] = Set("string_tag")
+    override def tags(payload: String): Set[String] = Set("string_tag")
 
     override def payloadToBson(payload: String): BSONDocument = BSONDocument("string" -> payload)
 

@@ -56,15 +56,12 @@ class EventAdapterFactorySpec extends FlatSpec {
       case BSONDocument(_) => BSONDocument("s" -> "Writer Overrided")
     }: PartialFunction[BSONDocument, BSONDocument])
 
-    val justForTestTags: Any => Set[String] = {
-      case "A" => Set("TagA")
-      case _ => Set("TagN")
-    }
+    val justForTestTags: I => Set[String] = i => Set(s"Tag${i.k.s}")
 
     val eventAdapter = EventAdapterFactory.adapt[I]("Ied", justForTestTags)
 
-    eventAdapter.tags("A") should contain("TagA")
-    eventAdapter.tags("x") should contain("TagN")
+    eventAdapter.tags(I(K("A"))) should contain("TagA")
+    eventAdapter.tags(I(K("N"))) should contain("TagN")
     val anInstance = I(K("k"))
     eventAdapter.payloadToBson(anInstance)
       .getAsOpt[BSONDocument]("k").get

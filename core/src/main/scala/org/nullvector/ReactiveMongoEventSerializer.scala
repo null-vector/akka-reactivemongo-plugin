@@ -93,7 +93,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
       case Serialize(realPayload, promise) => promise.completeWith(Future(
         adaptersByType.get(AdapterKey(realPayload.getClass)) match {
           case Some(adapter) => adapter match {
-            case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.tags(realPayload))
+            case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.readTags(realPayload))
             case e: AkkaEventAdapter =>
               e.toJournal(realPayload) match {
                 case Tagged(payload: BSONDocument, tags) => (payload, e.manifest(realPayload), tags)
