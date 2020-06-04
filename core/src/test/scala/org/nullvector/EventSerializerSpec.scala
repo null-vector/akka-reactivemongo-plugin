@@ -106,6 +106,10 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     override def sender: ActorRef = ???
 
     override def update(sequenceNr: Long, persistenceId: String, deleted: Boolean, sender: ActorRef, writerUuid: String): PersistentRepr = ???
+
+    override def timestamp: Long = ???
+
+    override def withTimestamp(newTimestamp: Long): PersistentRepr = ???
   }
 
 }

@@ -1,5 +1,7 @@
 package org.nullvector.journal
 
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Source
 import org.nullvector.Fields
 import reactivemongo.api.bson._
 
@@ -8,11 +10,12 @@ import scala.concurrent.Future
 trait ReactiveMongoHighestSequence {
   this: ReactiveMongoJournalImpl =>
 
+  implicit lazy val ac: ActorSystem = this.actorSystem
+
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
-    for {
-      journalSn <- journalMaxSnFrom(persistenceId, fromSequenceNr)
-      snapshotSn <- snapshotMaxSnFrom(persistenceId)
-    } yield List(journalSn, snapshotSn).max
+    Source(List(journalMaxSnFrom(persistenceId, fromSequenceNr), snapshotMaxSnFrom(persistenceId)))
+      .mapAsyncUnordered(2)(identity(_))
+      .runReduce(_ max _)
   }
 
   private def journalMaxSnFrom(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
