@@ -2,6 +2,8 @@ package org.nullvector.domain
 
 package object planets {
 
+  case class ListPlanets(planets: List[SolarPlanet])
+
   case class PlanetDistanceBetweenEarth(and: SolarPlanet, kilometers: Double)
 
   sealed trait SolarPlanet

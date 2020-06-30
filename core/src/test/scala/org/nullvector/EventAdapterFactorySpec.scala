@@ -3,7 +3,7 @@ package org.nullvector
 import akka.actor.ActorSystem
 import org.nullvector.domain.Money.Currency
 import org.nullvector.domain._
-import org.nullvector.domain.planets.{Jupiter, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
+import org.nullvector.domain.planets.{Earth, Jupiter, ListPlanets, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
@@ -110,6 +110,18 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     document.getAsOpt[String]("_type").get should be("Jupiter")
     eventAdapter.bsonToPayload(document) should be(Jupiter)
+  }
+
+  it should "mapping sealed trit familly as root event inside class types" in {
+    val listPlanets = ListPlanets(List(Jupiter, Earth, Mars))
+
+    implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+    val eventAdapter = EventAdapterFactory.adapt[ListPlanets]("x")
+
+    val document = eventAdapter.payloadToBson(listPlanets)
+//    println(BSONDocument.pretty(document))
+
+    eventAdapter.bsonToPayload(document) should be(listPlanets)
   }
 
   it should "create EventAdapter by hand" in {
