@@ -97,12 +97,16 @@ trait EventsQueries
         val event: BSONDocument = doc.getAsOpt[BSONDocument](Fields.events).get
         val rawPayload: BSONDocument = event.getAsOpt[BSONDocument](Fields.payload).get
         serializationMethod(event, rawPayload)
-          .map(payload => EventEnvelope(
-            ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get),
-            event.getAsOpt[String](Fields.persistenceId).get,
-            event.getAsOpt[Long](Fields.sequence).get,
-            payload,
-          ))
+          .map(payload => {
+            val offset = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
+            EventEnvelope(
+              offset,
+              event.getAsOpt[String](Fields.persistenceId).get,
+              event.getAsOpt[Long](Fields.sequence).get,
+              payload,
+              offset.bsonObjectId.time
+            )
+          })
       }
 
   private def buildFindEventsByTagsQuery(coll: collection.BSONCollection, offset: Offset, tags: Seq[String]) = {

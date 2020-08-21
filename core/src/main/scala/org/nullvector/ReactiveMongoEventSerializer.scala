@@ -27,18 +27,18 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
     persistentRepr.payload match {
       case Tagged(realPayload, tags) =>
-        val promise = Promise[(BSONDocument, String, Set[String])]
+        val promise = Promise[(BSONDocument, String, Set[String])]()
         adapterRegistryRef ! Serialize(realPayload, promise)
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> (tags ++ r._3))
 
       case payload =>
-        val promise = Promise[(BSONDocument, String, Set[String])]
+        val promise = Promise[(BSONDocument, String, Set[String])]()
         adapterRegistryRef ! Serialize(payload, promise)
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> r._3)
     }
 
   def deserialize(manifest: String, event: BSONDocument): Future[Any] = {
-    val promise = Promise[Any]
+    val promise = Promise[Any]()
     adapterRegistryRef ! Deserialize(manifest, event, promise)
     promise.future
   }

@@ -5,9 +5,8 @@ import akka.util.Timeout
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandError
-import reactivemongo.api.indexes.Index.Aux
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
-import reactivemongo.api.{AsyncDriver, DefaultDB, MongoConnection, MongoDriver}
+import reactivemongo.api.{AsyncDriver, DefaultDB, MongoConnection}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -31,38 +30,35 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   private val database: DefaultDB = {
     val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
-    val parsedUri: MongoConnection.ParsedURI = MongoConnection.parseURI(mongoUri) match {
-      case Success(_parsedURI) => _parsedURI
-      case Failure(exception) => throw exception
-    }
-    val databaseName = parsedUri.db.getOrElse(throw new Exception("Missing database name"))
     Await.result(
-      AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName)),
+      MongoConnection.fromString(mongoUri).flatMap { parsedUri =>
+        val databaseName = parsedUri.db.getOrElse(throw new Exception("Missing database name"))
+        AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName))
+      },
       30.seconds
     )
   }
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {
-    val promise = Promise[BSONCollection]
+    val promise = Promise[BSONCollection]()
     collections ! GetJournalCollectionNameFor(persistentId, promise)
     promise.future
   }
 
   def snapshotCollection(persistentId: String): Future[BSONCollection] = {
-    val promise = Promise[BSONCollection]
+    val promise = Promise[BSONCollection]()
     collections ! GetSnapshotCollectionNameFor(persistentId, promise)
     promise.future
   }
 
   def journals(): Future[List[BSONCollection]] = {
-    val promise = Promise[List[BSONCollection]]
+    val promise = Promise[List[BSONCollection]]()
     collections ! GetJournals(promise)
     promise.future
   }
 
 
   class Collections() extends Actor with ActorLogging {
-
     private val journalPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
     private val snapshotPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
@@ -93,7 +89,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
           } yield ())
             .onComplete {
               case Failure(exception) => log.error(exception, exception.getMessage)
-              case Success(value) =>
+              case Success(_) =>
             }
         }
 
@@ -107,7 +103,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
           } yield ())
             .onComplete {
               case Failure(exception) => log.error(exception, exception.getMessage)
-              case Success(value) =>
+              case Success(_) =>
             }
         }
 
