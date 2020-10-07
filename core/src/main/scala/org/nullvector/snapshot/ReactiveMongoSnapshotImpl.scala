@@ -1,6 +1,8 @@
 package org.nullvector.snapshot
 
+import akka.actor.ActorSystem
 import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
+import com.typesafe.config.Config
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.api.bson._
 import org.nullvector._
@@ -8,7 +10,7 @@ import org.nullvector._
 import scala.concurrent.Future
 import scala.util.Try
 
-trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
+class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem) extends ReactiveMongoPlugin with SnapshotStoreOps {
 
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
     for {
@@ -95,4 +97,5 @@ trait ReactiveMongoSnapshotImpl extends ReactiveMongoPlugin {
       ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
     }.transform(_.flatMap(identity))
   }
+
 }

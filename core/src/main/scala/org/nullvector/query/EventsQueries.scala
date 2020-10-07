@@ -27,10 +27,9 @@ trait EventsQueries
     }
   }
 
-  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] =
-    (event: BSONDocument, rawPayload: BSONDocument) => event.getAsOpt[String](Fields.manifest).get match {
-    case Fields.manifest_doc => Future.successful(rawPayload)
-    case manifest => serializer.deserialize(manifest, rawPayload)
+  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => {
+    val manifest = event.getAsOpt[String](Fields.manifest).get
+    serializer.deserialize(manifest, rawPayload)
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
@@ -93,21 +92,21 @@ trait EventsQueries
   }
 
   private def document2Envelope(serializationMethod: (BSONDocument, BSONDocument) => Future[Any]) = Flow[BSONDocument]
-      .mapAsync(amountOfCores) { doc =>
-        val event: BSONDocument = doc.getAsOpt[BSONDocument](Fields.events).get
-        val rawPayload: BSONDocument = event.getAsOpt[BSONDocument](Fields.payload).get
-        serializationMethod(event, rawPayload)
-          .map(payload => {
-            val offset = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
-            EventEnvelope(
-              offset,
-              event.getAsOpt[String](Fields.persistenceId).get,
-              event.getAsOpt[Long](Fields.sequence).get,
-              payload,
-              offset.bsonObjectId.time
-            )
-          })
-      }
+    .mapAsync(amountOfCores) { doc =>
+      val event: BSONDocument = doc.getAsOpt[BSONDocument](Fields.events).get
+      val rawPayload: BSONDocument = event.getAsOpt[BSONDocument](Fields.payload).get
+      serializationMethod(event, rawPayload)
+        .map(payload => {
+          val offset = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
+          EventEnvelope(
+            offset,
+            event.getAsOpt[String](Fields.persistenceId).get,
+            event.getAsOpt[Long](Fields.sequence).get,
+            payload,
+            offset.bsonObjectId.time
+          )
+        })
+    }
 
   private def buildFindEventsByTagsQuery(coll: collection.BSONCollection, offset: Offset, tags: Seq[String]) = {
 

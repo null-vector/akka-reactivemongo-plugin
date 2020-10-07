@@ -9,6 +9,8 @@ object ObjectIdOffset {
     val objectID = BSONObjectID.fromTime(dateTime.getMillis)
     new ObjectIdOffset(objectID)
   }
+
+  def newOffset(): ObjectIdOffset = new ObjectIdOffset(BSONObjectID.fromTime(System.currentTimeMillis()))
 }
 
 case class ObjectIdOffset(bsonObjectId: BSONObjectID) extends Offset with Ordered[ObjectIdOffset] {

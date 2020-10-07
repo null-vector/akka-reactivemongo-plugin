@@ -21,16 +21,9 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
   private val conf: Config = ConfigFactory.load()
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
 
-  val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl {
-    override val config: Config = conf
-    override val actorSystem: ActorSystem = system
-  }
+  val asyncWriteJournalOps: AsyncWriteJournalOps = new ReactiveMongoJournalImpl(conf, system)
 
-  private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl {
-    override val config: Config = conf
-    override val actorSystem: ActorSystem = system
-  }
-
+  private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(conf,system)
 
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new ListAdapter())
@@ -57,10 +50,10 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
         AtomicWrite(PersistentRepr(payload = "OneMoreEvent", persistenceId = pId, sequenceNr = 25))
       )
 
-      val eventualTriedUnits = reactiveMongoJournalImpl.asyncWriteMessages(events)
+      val eventualTriedUnits = asyncWriteJournalOps.asyncWriteMessages(events)
       Await.result(eventualTriedUnits, 1.second)
 
-      val eventualLong = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(pId, 22)
+      val eventualLong = asyncWriteJournalOps.asyncReadHighestSequenceNr(pId, 22)
 
       Await.result(eventualLong, 7.second) should be(25)
     }
@@ -73,11 +66,11 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
         AtomicWrite(PersistentRepr(BSONDocument("name" -> "John Coltrane"), persistenceId = pId, sequenceNr = 55)),
       )
 
-      val eventualTriedUnits = reactiveMongoJournalImpl.asyncWriteMessages(events)
+      val eventualTriedUnits = asyncWriteJournalOps.asyncWriteMessages(events)
       Await.result(eventualTriedUnits, 1.second)
 
       val reps = ArrayBuffer[PersistentRepr]()
-      Await.result(reactiveMongoJournalImpl.asyncReplayMessages(pId, 0, 1000, 10000)(rep => reps += rep), 7.seconds)
+      Await.result(asyncWriteJournalOps.asyncReplayMessages(pId, 0, 1000, 10000)(rep => reps += rep), 7.seconds)
 
       reps.head.payload.asInstanceOf[BSONDocument].getAsOpt[String]("name").get shouldBe "John Coltrane"
       reps.head.sequenceNr shouldBe 55
@@ -93,11 +86,11 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
         AtomicWrite(PersistentRepr(payload = "AnEvent", persistenceId = persistenceId, sequenceNr = 27))
       )
 
-      Await.result(reactiveMongoJournalImpl.asyncWriteMessages(events), 1.second)
+      Await.result(asyncWriteJournalOps.asyncWriteMessages(events), 1.second)
       Await.result(reactiveMongoSnapshotImpl.saveAsync(SnapshotMetadata(persistenceId, 35), BSONDocument("greeting" -> "Hello")), 2.seconds)
       Await.result(reactiveMongoSnapshotImpl.saveAsync(SnapshotMetadata(persistenceId, 36), BSONDocument("greeting" -> "Hello")), 2.seconds)
 
-      val eventualHighest = reactiveMongoJournalImpl.asyncReadHighestSequenceNr(persistenceId, 0)
+      val eventualHighest = asyncWriteJournalOps.asyncReadHighestSequenceNr(persistenceId, 0)
 
       Await.result(eventualHighest, 2.seconds) shouldBe 36
     }

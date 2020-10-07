@@ -18,10 +18,7 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
 
   import system.dispatcher
 
-  val snapshotter: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl {
-    override val config: Config = ConfigFactory.load()
-    override val actorSystem: ActorSystem = system
-  }
+  val snapshotter: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(ConfigFactory.load(), system)
 
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new StateAdapter)
@@ -80,7 +77,6 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
       snapshot.snapshot.asInstanceOf[BSONDocument].getAsOpt[String]("greeting").get should be("Hello World")
       snapshot.metadata.sequenceNr should be(333)
     }
-
 
     "delete snapshot" in {
       val pId = s"TestAggregate-delete"

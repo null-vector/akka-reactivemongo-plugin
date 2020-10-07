@@ -22,7 +22,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   serializer.loadAkkaAdaptersFrom("custom.akka.persistent.adapters")
 
   "EventSerializer" should "serialize an Event" in {
-    val eventualTuple = serializer.serialize(PersistentReprProbe(AnEvent("Hello World"), "AnEvent"))
+    val eventualTuple = serializer.serialize(PersistentRepr(AnEvent("Hello World"), manifest = "AnEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
     document.getAsOpt[String]("string").get shouldBe ("Hello World")
@@ -36,7 +36,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "serialize an AkkaEvent" in {
-    val eventualTuple = serializer.serialize(PersistentReprProbe(SomeLegacyEvent("John", "Coltrane"), "SomeLegacyEvent"))
+    val eventualTuple = serializer.serialize(PersistentRepr(SomeLegacyEvent("John", "Coltrane"), manifest =  "SomeLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
     document.getAsOpt[String]("firstName").get shouldBe ("John")
@@ -60,7 +60,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "serialize other AkkaEvent" in {
-    val eventualTuple = serializer.serialize(PersistentReprProbe(OtherLegacyEvent("John", "Coltrane"), "OtherLegacyEvent"))
+    val eventualTuple = serializer.serialize(PersistentRepr(OtherLegacyEvent("John", "Coltrane"), manifest = "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
     document.getAsOpt[String]("firstName").get shouldBe ("John")
@@ -73,7 +73,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "serialize other AkkaEvent with Tag" in {
-    val eventualTuple = serializer.serialize(PersistentReprProbe(Tagged(OtherLegacyEvent("John", "Coltrane"), Set("tag")), "OtherLegacyEvent"))
+    val eventualTuple = serializer.serialize(PersistentRepr(Tagged(OtherLegacyEvent("John", "Coltrane"), Set("tag")), manifest =  "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
     document.getAsOpt[String]("firstName").get shouldBe ("John")
     document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")
@@ -81,7 +81,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "try serialize non registered event" in {
-    val eventualTuple = serializer.serialize(PersistentReprProbe(BigDecimal("678"), "BogDecimalEvent"))
+    val eventualTuple = serializer.serialize(PersistentRepr(BigDecimal("678"), manifest =  "BogDecimalEvent"))
     an[Exception] should be thrownBy Await.result(eventualTuple, 1.second)
   }
 
@@ -89,28 +89,6 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     shutdown()
   }
 
-  case class PersistentReprProbe(payload: Any, manifest: String) extends PersistentRepr {
-
-    override def persistenceId: String = ???
-
-    override def sequenceNr: Long = ???
-
-    override def writerUuid: String = ???
-
-    override def withPayload(payload: Any): PersistentRepr = copy(payload = payload)
-
-    override def withManifest(manifest: String): PersistentRepr = copy(manifest = manifest)
-
-    override def deleted: Boolean = ???
-
-    override def sender: ActorRef = ???
-
-    override def update(sequenceNr: Long, persistenceId: String, deleted: Boolean, sender: ActorRef, writerUuid: String): PersistentRepr = ???
-
-    override def timestamp: Long = ???
-
-    override def withTimestamp(newTimestamp: Long): PersistentRepr = ???
-  }
 
 }
 

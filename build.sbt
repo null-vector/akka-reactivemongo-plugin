@@ -1,7 +1,7 @@
 lazy val scala212 = "2.12.12"
 lazy val scala213 = "2.13.3"
 lazy val supportedScalaVersions = List(scala212, scala213)
-lazy val akkaVersion = "2.6.8"
+lazy val akkaVersion = "2.6.9"
 lazy val rxmongoVersion = "0.20.11"
 
 lazy val commonSettings = Seq(
@@ -13,7 +13,7 @@ lazy val commonSettings = Seq(
   scalacOptions := Seq(
     "-encoding", "UTF-8", "-target:jvm-1.8", "-deprecation",
     "-language:experimental.macros",
-//    "-Ymacro-annotations",
+    //    "-Ymacro-annotations",
     "-feature",
     "-unchecked",
     "-language:implicitConversions",
@@ -24,7 +24,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence" % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion,
-  libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+  libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
 
   libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
 
@@ -35,6 +35,8 @@ lazy val commonSettings = Seq(
 
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
 
+  //libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+  libraryDependencies += "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
   libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % Test,
   libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
 

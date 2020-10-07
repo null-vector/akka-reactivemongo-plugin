@@ -14,7 +14,7 @@ trait ReactiveMongoHighestSequence {
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
     Source(List(journalMaxSnFrom(persistenceId, fromSequenceNr), snapshotMaxSnFrom(persistenceId)))
-      .mapAsyncUnordered(2)(identity(_))
+      .mapAsyncUnordered(2)(identity)
       .runReduce(_ max _)
   }
 

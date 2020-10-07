@@ -30,11 +30,7 @@ trait ReactiveMongoAsyncReplay {
         .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
           val manifest = doc.getAsOpt[String](Fields.manifest).get
           val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
-          (manifest match {
-            case Fields.manifest_doc => Future.successful(rawPayload)
-            case manifest => serializer.deserialize(manifest, rawPayload)
-          })
-            .map(payload =>
+          serializer.deserialize(manifest, rawPayload).map(payload =>
               PersistentRepr(
                 payload,
                 doc.getAsOpt[Long](Fields.sequence).get,
