@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.journal.AsyncWriteJournal
 import com.typesafe.config.Config
-import org.nullvector.journal.inmemory.InMemoryAsyncWriteJournal
 
 import scala.concurrent.Future
 import scala.util.Try

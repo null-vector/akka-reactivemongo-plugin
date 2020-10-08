@@ -12,11 +12,9 @@ object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProv
 
 class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJournalProvider with Extension {
 
-  override val scaladslReadJournal: ReactiveMongoScalaReadJournal =
-    new ReactiveMongoScalaReadJournal(system)
+  override val scaladslReadJournal: ReactiveMongoScalaReadJournal = new ReactiveMongoScalaReadJournal(system)
 
-  override val javadslReadJournal: ReactiveMongoJavaReadJournal =
-    new ReactiveMongoJavaReadJournal(scaladslReadJournal)
+  override val javadslReadJournal: ReactiveMongoJavaReadJournal = new ReactiveMongoJavaReadJournal(scaladslReadJournal)
 }
 
 

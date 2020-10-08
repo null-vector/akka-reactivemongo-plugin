@@ -1,16 +1,14 @@
-package org.nullvector.journal.inmemory
+package org.nullvector
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, ExtensionId}
+import akka.actor.typed.{ActorRef, Behavior, Extension, ExtensionId, ActorSystem => TypedActorSystem}
 import org.nullvector.query.ObjectIdOffset
 import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Future, Promise}
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, Extension, ExtensionId, ActorSystem => TypedActorSystem}
 
 object PersistInMemory extends ExtensionId[PersistInMemory] {
 
@@ -18,7 +16,7 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   case class Persist(persistenceId: String, eventEntry: Seq[EventEntry]) extends Command
 
-  case class Snapshot(persistenceId: String, snapshotEntry: SnapshotEntry) extends Command
+  case class Snapshot(persistenceId: String, snapshotEntry: SnapshotEntry, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
 
   case class EventsOf(persistenceId: String, replyEvents: Either[ActorRef[Seq[EventEntry]], Promise[Seq[EventEntry]]]) extends Command
 
@@ -28,12 +26,18 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   case class RemoveEventsOf(persistenceId: String, toSequenceNr: Long) extends Command
 
+  case class RemoveSnapshotsOf(persistenceId: String, sequences: SequenceRange, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+
   case class EventEntry(sequence: Long, manifest: String, event: BSONDocument, tags: Set[String], offset: Option[ObjectIdOffset] = None) {
     def withOffset(): EventEntry = copy(offset = Some(ObjectIdOffset.newOffset()))
   }
 
-  case class SnapshotEntry(sequence: Long, manifest: String, event: BSONDocument, timestamp: Long, offset: Option[ObjectIdOffset] = None) {
-    def withOffset(): SnapshotEntry = copy(offset = Some(ObjectIdOffset.newOffset()))
+  case class SnapshotEntry(sequence: Long, manifest: String, event: BSONDocument, timestamp: Long)
+
+  class SequenceRange(min: Long, max: Long) {
+    def this(single: Long) = this(single, single)
+
+    def contains(value: Long) = min <= value && max >= value
   }
 
   def createExtension(system: TypedActorSystem[_]): PersistInMemory = new PersistInMemory(system)
@@ -52,11 +56,12 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
         }
         Behaviors.same
 
-      case Snapshot(persistenceId, snapshotEntry) =>
+      case Snapshot(persistenceId, snapshotEntry, replyDone) =>
         snapshotById.get(persistenceId) match {
-          case Some(events) => snapshotById += (persistenceId -> (events :+ snapshotEntry.withOffset()))
-          case None => snapshotById += (persistenceId -> ListBuffer(snapshotEntry.withOffset()))
+          case Some(events) => snapshotById += (persistenceId -> (events :+ snapshotEntry))
+          case None => snapshotById += (persistenceId -> ListBuffer(snapshotEntry))
         }
+        reply(replyDone, Done)
         Behaviors.same
 
       case EventsOf(persistenceId, replyEvents) =>
@@ -77,11 +82,20 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
         }
         Behaviors.same
 
+
       case HighestSequenceOf(persistenceId, replyMaxSeq) =>
-        val maxSequence = eventsById.getOrElse(persistenceId, Nil).maxByOption(_.sequence).map(_.sequence).getOrElse(0L)
-        reply(replyMaxSeq, maxSequence)
+        val maxEventSeq = eventsById.getOrElse(persistenceId, Nil).lastOption.map(_.sequence).getOrElse(0L)
+        val maxSnapshotSeq = snapshotById.getOrElse(persistenceId, Nil).lastOption.map(_.sequence).getOrElse(0L)
+        reply(replyMaxSeq, List(maxEventSeq, maxSnapshotSeq).max)
         Behaviors.same
 
+      case RemoveSnapshotsOf(persistenceId, sequences, replyDone) =>
+        snapshotById.get(persistenceId) match {
+          case Some(snapshots) => snapshots.filterInPlace(entry => !sequences.contains(entry.sequence))
+          case None =>
+        }
+        reply(replyDone, Done)
+        Behaviors.same
     }
   }
 
@@ -120,4 +134,23 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
     persistInMemory.tell(HighestSequenceOf(persistenceId, Right(promise)))
     promise.future
   }
+
+  def addSnapshot(persistenceId: String, entry: PersistInMemory.SnapshotEntry): Future[Done] = {
+    val promisedDone = Promise[Done]()
+    persistInMemory.tell(Snapshot(persistenceId, entry, Right(promisedDone)))
+    promisedDone.future
+  }
+
+  def snapshotsOf(persistenceId: String): Future[Seq[SnapshotEntry]] = {
+    val promise = Promise[Seq[SnapshotEntry]]
+    persistInMemory.tell(SnapshotsOf(persistenceId, Right(promise)))
+    promise.future
+  }
+
+  def removeSnapshotOf(persistenceId: String, sequences: SequenceRange): Future[Done] = {
+    val promisedDone = Promise[Done]()
+    persistInMemory.tell(RemoveSnapshotsOf(persistenceId, sequences, Right(promisedDone)))
+    promisedDone.future
+  }
+
 }

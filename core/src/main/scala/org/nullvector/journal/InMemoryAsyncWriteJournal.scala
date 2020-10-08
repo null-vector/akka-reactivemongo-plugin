@@ -1,12 +1,11 @@
-package org.nullvector.journal.inmemory
+package org.nullvector.journal
 
 import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.Materializer
-import akka.stream.StreamRefMessages.Payload
 import akka.stream.scaladsl.{Sink, Source}
-import org.nullvector.ReactiveMongoEventSerializer
-import org.nullvector.journal.AsyncWriteJournalOps
+import org.nullvector.PersistInMemory.EventEntry
+import org.nullvector.{PersistInMemory, ReactiveMongoEventSerializer}
 import reactivemongo.api.bson.BSONDocument
 
 import scala.concurrent.Future
@@ -15,7 +14,6 @@ import scala.util.{Success, Try}
 class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJournalOps {
 
   import akka.actor.typed.scaladsl.adapter._
-  import org.nullvector.journal.inmemory.PersistInMemory._
 
   private implicit val ec = system.dispatcher
   private implicit val materializer: Materializer = Materializer.matFromSystem(system)
@@ -26,7 +24,7 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
     Source(messages).mapAsync(15)(atomic =>
       Source(atomic.payload)
         .mapAsync(15)(eventSerializer.serialize)
-        .map(slized => (persistentRepr2EventEntry _).tupled(slized))
+        .map(slized => persistentRepr2EventEntry _ tupled slized)
         .runWith(Sink.seq)
         .flatMap(events => persistInMemory.addEvents(atomic.persistenceId, events))
     )
@@ -45,7 +43,7 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
       .mapConcat(identity)
       .filter(entry => entry.sequence >= fromSequenceNr && entry.sequence <= toSequenceNr)
       .mapAsync(15)(entry => eventSerializer.deserialize(entry.manifest, entry.event).map(payload => entry -> payload))
-      .map(entryAndPayload => (eventEntry2PersistentRepr(persistenceId) _).tupled(entryAndPayload))
+      .map(entryAndPayload => eventEntry2PersistentRepr(persistenceId) _ tupled entryAndPayload)
       .runForeach(recoveryCallback)
       .map(_ => ())
   }
