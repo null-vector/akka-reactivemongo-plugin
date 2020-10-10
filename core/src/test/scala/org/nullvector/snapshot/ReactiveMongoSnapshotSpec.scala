@@ -32,14 +32,12 @@ class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlug
     "write and load" in {
       val pId = s"TestAggregate-read_write"
 
-      Await.ready(snapshotter.saveAsync(SnapshotMetadata(pId, 111, new Date().getTime), AggregateState("Miles", 23)), 7.seconds)
-      Await.ready(snapshotter.saveAsync(SnapshotMetadata(pId, 222, new Date().getTime), AggregateState("Miles", 34)), 7.seconds)
-      Await.ready(snapshotter.saveAsync(SnapshotMetadata(pId, 333, new Date().getTime), AggregateState("Miles", 56)), 7.seconds)
-      Await.ready(snapshotter.saveAsync(SnapshotMetadata(pId, 333, new Date().getTime), AggregateState("Miles", 78)), 7.seconds)
+      Await.result(snapshotter.saveAsync(SnapshotMetadata(pId, 111, new Date().getTime), AggregateState("Miles", 23)), 7.seconds)
+      Await.result(snapshotter.saveAsync(SnapshotMetadata(pId, 222, new Date().getTime), AggregateState("Miles", 34)), 7.seconds)
+      Await.result(snapshotter.saveAsync(SnapshotMetadata(pId, 333, new Date().getTime), AggregateState("Miles", 56)), 7.seconds)
+      Await.result(snapshotter.saveAsync(SnapshotMetadata(pId, 333, new Date().getTime), AggregateState("Miles", 78)), 7.seconds)
 
       val snapshot = Await.result(snapshotter.loadAsync(pId, SnapshotSelectionCriteria()), 7.seconds).get
-
-
       snapshot.snapshot.asInstanceOf[AggregateState].age should be(78)
       snapshot.metadata.sequenceNr should be(333)
     }

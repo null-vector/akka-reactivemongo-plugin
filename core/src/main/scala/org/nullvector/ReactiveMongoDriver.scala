@@ -4,9 +4,9 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension
 import akka.util.Timeout
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
-import reactivemongo.api.commands.CommandError
+import reactivemongo.api.commands.CommandException
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
-import reactivemongo.api.{AsyncDriver, DefaultDB, MongoConnection}
+import reactivemongo.api.{AsyncDriver, DB, MongoConnection}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -26,9 +26,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
 
   private implicit val timeout: Timeout = Timeout(5.seconds)
-  private val collections: ActorRef = system.actorOf(Props(new Collections()))
+  private val collections: ActorRef = system.systemActorOf(Props(new Collections()), "ReactiveMongoDriverCollections")
 
-  private val database: DefaultDB = {
+  private val database: DB = {
     val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
     Await.result(
       MongoConnection.fromString(mongoUri).flatMap { parsedUri =>
@@ -82,7 +82,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
           (for {
-            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
+            _ <- collection.create().recover { case CommandException.Code(48) => () }
             _ <- ensurePidSeqIndex(collection.indexesManager)
             _ <- ensureTagIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
@@ -97,7 +97,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         if (!verifiedNames.contains(collectionName)) {
           val collection = database.collection[BSONCollection](collectionName)
           (for {
-            _ <- collection.create().recover { case e: CommandError if e.code.contains(48) => () }
+            _ <- collection.create().recover { case CommandException.Code(48) => () }
             _ <- ensureSnapshotIndex(collection.indexesManager)
             _ <- Future.successful(self ! AddVerified(collectionName))
           } yield ())
@@ -148,9 +148,8 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       key = key,
       name = name,
       unique = unique,
-      sparse = sparse,
       background = false,
-      dropDups = false,
+      sparse = false,
       expireAfterSeconds = None,
       storageEngine = None,
       weights = None,

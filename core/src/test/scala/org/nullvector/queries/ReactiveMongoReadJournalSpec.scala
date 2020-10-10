@@ -11,7 +11,7 @@ import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.joda.time.DateTime
 import org.nullvector.journal.ReactiveMongoJournalImpl
-import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
+import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, ReactiveMongoScalaReadJournalImpl, RefreshInterval}
 import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
@@ -190,46 +190,41 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
     "Infinite Events by tag with Custom RefreshInterval" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
-
       readJournal
         .eventsByTag("event_tag_1", NoOffset)
         .async
-        .addAttributes(RefreshInterval(700.millis))
+        .addAttributes(RefreshInterval(50.millis))
         .runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
-
       readJournal
         .eventsByTag("some_tag", NoOffset)
         .async
-        .addAttributes(RefreshInterval(700.millis))
+        .addAttributes(RefreshInterval(50.millis))
         .runWith(Sink.foreach(println))
+      Thread.sleep(500)
 
-      Thread.sleep(1 * 1000)
-
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
+      Await.ready(Source(1 to 3).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
 
-      Thread.sleep(1 * 1000)
+      Thread.sleep(500)
 
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
+      Await.ready(Source(1 to 3).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
 
-      Thread.sleep(1 * 1000)
+      Thread.sleep(500)
 
-      envelopes.size shouldBe 500
+      envelopes.size shouldBe 150
     }
 
     "Infinite Events by Id" in {

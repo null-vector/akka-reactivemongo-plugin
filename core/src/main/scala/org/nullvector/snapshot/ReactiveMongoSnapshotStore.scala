@@ -4,18 +4,16 @@ import akka.actor.ActorSystem
 import akka.persistence.snapshot.SnapshotStore
 import akka.persistence.{SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
 import com.typesafe.config.Config
+import org.nullvector.{PersistInMemory, UnderlyingPersistenceFactory}
 
 import scala.concurrent.Future
 
 class ReactiveMongoSnapshotStore(val config: Config) extends SnapshotStore {
 
-  private val persistInMemory: Boolean = context.system.settings.config.getBoolean("akka-persistence-reactivemongo.persist-in-memory")
-
-  private val snapshotOps: SnapshotStoreOps =
-    if (!persistInMemory)
-      new ReactiveMongoSnapshotImpl(config, context.system)
-    else
-      new InMemorySnapshotStore(context.system)
+  private val snapshotOps: SnapshotStoreOps = UnderlyingPersistenceFactory(
+    new ReactiveMongoSnapshotImpl(config, context.system),
+    new InMemorySnapshotStore(context.system)
+  )(context.system)
 
   override def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = snapshotOps.loadAsync(persistenceId, criteria)
 

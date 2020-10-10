@@ -1,12 +1,13 @@
 package org.nullvector
 
-import akka.Done
+import akka.{Done, NotUsed}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior, Extension, ExtensionId, ActorSystem => TypedActorSystem}
+import akka.stream.scaladsl.Source
 import org.nullvector.query.ObjectIdOffset
 import reactivemongo.api.bson.BSONDocument
 
-import scala.collection.mutable
+import scala.collection.{View, mutable}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Future, Promise}
 
@@ -20,6 +21,8 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   case class EventsOf(persistenceId: String, replyEvents: Either[ActorRef[Seq[EventEntry]], Promise[Seq[EventEntry]]]) extends Command
 
+  case class AllEvents(replyEvents: Either[ActorRef[Source[(String, EventEntry), NotUsed]], Promise[Source[(String, EventEntry), NotUsed]]]) extends Command
+
   case class SnapshotsOf(persistenceId: String, replySnapshot: Either[ActorRef[Seq[SnapshotEntry]], Promise[Seq[SnapshotEntry]]]) extends Command
 
   case class HighestSequenceOf(persistenceId: String, replyMaxSeq: Either[ActorRef[Long], Promise[Long]]) extends Command
@@ -28,8 +31,10 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   case class RemoveSnapshotsOf(persistenceId: String, sequences: SequenceRange, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
 
+  case class InvalidateAll(replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+
   case class EventEntry(sequence: Long, manifest: String, event: BSONDocument, tags: Set[String], offset: Option[ObjectIdOffset] = None) {
-    def withOffset(): EventEntry = copy(offset = Some(ObjectIdOffset.newOffset()))
+    def withOffset(): EventEntry = copy(offset = offset.orElse(Some(ObjectIdOffset.newOffset())))
   }
 
   case class SnapshotEntry(sequence: Long, manifest: String, event: BSONDocument, timestamp: Long)
@@ -82,7 +87,6 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
         }
         Behaviors.same
 
-
       case HighestSequenceOf(persistenceId, replyMaxSeq) =>
         val maxEventSeq = eventsById.getOrElse(persistenceId, Nil).lastOption.map(_.sequence).getOrElse(0L)
         val maxSnapshotSeq = snapshotById.getOrElse(persistenceId, Nil).lastOption.map(_.sequence).getOrElse(0L)
@@ -94,6 +98,18 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
           case Some(snapshots) => snapshots.filterInPlace(entry => !sequences.contains(entry.sequence))
           case None =>
         }
+        reply(replyDone, Done)
+        Behaviors.same
+
+      case AllEvents(replyEvents) =>
+        val flatten = eventsById.view.flatMap(entry => entry._2.map(event => entry._1 -> event)).iterator
+        val source = Source.fromIterator(() => flatten)
+        reply(replyEvents, source)
+        Behaviors.same
+
+      case InvalidateAll(replyDone) =>
+        eventsById.clear()
+        snapshotById.clear()
         reply(replyDone, Done)
         Behaviors.same
     }
@@ -152,5 +168,18 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
     persistInMemory.tell(RemoveSnapshotsOf(persistenceId, sequences, Right(promisedDone)))
     promisedDone.future
   }
+
+  def allEvents(): Future[Source[(String, EventEntry), NotUsed]] = {
+    val promisedDone = Promise[Source[(String, EventEntry), NotUsed]]()
+    persistInMemory.tell(AllEvents(Right(promisedDone)))
+    promisedDone.future
+  }
+
+  def invalidateAll(): Future[Done] = {
+    val promisedDone = Promise[Done]()
+    persistInMemory.tell(InvalidateAll(Right(promisedDone)))
+    promisedDone.future
+  }
+
 
 }

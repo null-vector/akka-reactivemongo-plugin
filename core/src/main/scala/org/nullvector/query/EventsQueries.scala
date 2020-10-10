@@ -13,9 +13,9 @@ trait EventsQueries
   extends akka.persistence.query.scaladsl.EventsByTagQuery
     with akka.persistence.query.scaladsl.EventsByPersistenceIdQuery
     with akka.persistence.query.scaladsl.CurrentEventsByTagQuery
-    with akka.persistence.query.scaladsl.CurrentEventsByPersistenceIdQuery {
+    with akka.persistence.query.scaladsl.CurrentEventsByPersistenceIdQuery with CustomReadOps {
 
-  this: ReactiveMongoScalaReadJournal =>
+  this: ReactiveMongoScalaReadJournalImpl =>
 
   private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
 
@@ -69,16 +69,16 @@ trait EventsQueries
     * Same as  [[EventsQueries#currentEventsByTag]] but events aren't serialized, instead
     * the `EventEnvelope` will contain the raw `BSONDocument`
    */
-  def currentRawEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
+  override def currentRawEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     currentRawEventsByTag(Seq(tag), offset)
   }
 
-  def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+  override def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
     implicit val raw: (BSONDocument, BSONDocument) => Future[BSONDocument] = (_, rawPayload) => Future(rawPayload)
     eventsByTagQuery(tags, offset)
   }
 
-  def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+  override def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
     eventsByTagQuery(tags, offset)
   }
 
@@ -109,33 +109,29 @@ trait EventsQueries
     }
 
   private def buildFindEventsByTagsQuery(coll: collection.BSONCollection, offset: Offset, tags: Seq[String]) = {
-
     def query(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
 
-    import coll.aggregationFramework._
-
-    val $1stMatch = Match(query(Fields.tags) ++ filterByOffset(offset))
-    val $unwind = UnwindField(Fields.events)
-    val $2ndMatch = Match(query(s"${Fields.events}.${Fields.tags}"))
-
     coll
-      .aggregateWith[BSONDocument]()(_ => ($1stMatch, List($unwind, $2ndMatch)))
+      .aggregateWith[BSONDocument]()(framework =>
+        List(
+          framework.Match(query(Fields.tags) ++ filterByOffset(offset)),
+          framework.UnwindField(Fields.events),
+          framework.Match(query(s"${Fields.events}.${Fields.tags}")),
+        ))
       .documentSource()
   }
 
   private def buildFindEventsByIdQuery(coll: collection.BSONCollection, persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) = {
-    import coll.aggregationFramework._
-
-    val $match = Match(BSONDocument(
-      Fields.persistenceId -> persistenceId,
-      Fields.from_sn -> BSONDocument("$gt" -> fromSequenceNr),
-      Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr)
-    ))
-    val $unwind = UnwindField(Fields.events)
-    val $sort = Sort(Ascending(s"${Fields.events}.${Fields.sequence}"))
-
     coll
-      .aggregateWith[BSONDocument]()(_ => ($match, List($unwind, $sort)))
+      .aggregateWith[BSONDocument]()(framework => List(
+        framework.Match(BSONDocument(
+          Fields.persistenceId -> persistenceId,
+          Fields.from_sn -> BSONDocument("$gt" -> fromSequenceNr),
+          Fields.to_sn -> BSONDocument("$lte" -> toSequenceNr)
+        )),
+        framework.UnwindField(Fields.events),
+        framework.Sort(framework.Ascending(s"${Fields.events}.${Fields.sequence}"))
+      ))
       .documentSource()
   }
 

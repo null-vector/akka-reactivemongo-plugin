@@ -5,7 +5,7 @@ import org.nullvector.{Fields, _}
 import reactivemongo.api.bson._
 
 import scala.concurrent.Future
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 trait ReactiveMongoAsyncWrite {
   this: ReactiveMongoJournalImpl =>
@@ -28,7 +28,9 @@ trait ReactiveMongoAsyncWrite {
           )
         }
       }
-      results <- Future.traverse(atomicDocs)(doc => collection.insert(ordered = true).one(doc): Future[Try[Unit]])
+      results <- Future.traverse(atomicDocs)(doc => collection.insert(ordered = true).one(doc)
+        .map(result => if (result.writeErrors.isEmpty) Success() else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n"))))
+      )
     } yield results
   }
 

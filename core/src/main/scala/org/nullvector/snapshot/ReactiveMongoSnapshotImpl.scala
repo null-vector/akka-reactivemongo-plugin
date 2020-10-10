@@ -8,7 +8,7 @@ import reactivemongo.api.bson._
 import org.nullvector._
 
 import scala.concurrent.Future
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem) extends ReactiveMongoPlugin with SnapshotStoreOps {
 
@@ -23,7 +23,6 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           Fields.snapshot_ts -> BSONDocument("$gte" -> criteria.minTimestamp),
           Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
         ), Option.empty[BSONDocument]).one[BSONDocument]
-
       maybeSelected <- maybeDoc.map { doc =>
         val payloadDoc = (doc.getAsOpt[BSONDocument](Fields.payload), doc.getAsOpt[BSONDocument](Fields.snapshot_payload)) match {
           case (Some(payloaDoc), _) => payloaDoc
@@ -33,17 +32,15 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
         (doc.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) => serializer.deserialize(manifest, payloadDoc)
           case None => Future.successful(payloadDoc)
-        })
-          .map(snapshot =>
-            Some(SelectedSnapshot(
-              SnapshotMetadata(
-                persistenceId,
-                doc.getAsOpt[Long](Fields.sequence).get,
-                doc.getAsOpt[Long](Fields.snapshot_ts).get,
-              ),
-              snapshot
-            )
-            ))
+        }).map(snapshot =>
+          Some(SelectedSnapshot(
+            SnapshotMetadata(
+              persistenceId,
+              doc.getAsOpt[Long](Fields.sequence).get,
+              doc.getAsOpt[Long](Fields.snapshot_ts).get,
+            ),
+            snapshot
+          )))
       }.getOrElse(Future.successful(None))
     } yield maybeSelected
   }
@@ -71,6 +68,7 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
       Fields.snapshot_payload -> payload,
       Fields.manifest -> maybeManifest,
     ))
+      .map(result => if (result.writeErrors.isEmpty) Success() else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n"))))
   }
 
   def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = {
@@ -81,8 +79,11 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           Fields.persistenceId -> metadata.persistenceId,
           Fields.sequence -> metadata.sequenceNr,
         ), None, None
-      ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
-    }.transform(_.flatMap(identity))
+      ).flatMap(el => deleteBuilder.many(Seq(el)).map(result => result.errmsg match {
+        case Some(error) => throw new Exception(error)
+        case None => ()
+      }))
+    }
   }
 
   def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = {
@@ -94,8 +95,11 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
           Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
         ), None, None
-      ).flatMap(el => deleteBuilder.many(Seq(el)): Future[Try[Unit]])
-    }.transform(_.flatMap(identity))
+      ).flatMap(el => deleteBuilder.many(Seq(el)).map(result => result.errmsg match {
+        case Some(error) => throw new Exception(error)
+        case None => ()
+      }))
+    }
   }
 
 }

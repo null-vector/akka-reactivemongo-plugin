@@ -20,7 +20,7 @@ trait PersistenceIdsQueries
   extends akka.persistence.query.scaladsl.PersistenceIdsQuery
     with akka.persistence.query.scaladsl.CurrentPersistenceIdsQuery {
 
-  this: ReactiveMongoScalaReadJournal =>
+  this: ReactiveMongoScalaReadJournalImpl =>
 
   private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
 

@@ -4,17 +4,16 @@ import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.journal.AsyncWriteJournal
 import com.typesafe.config.Config
+import org.nullvector.{PersistInMemory, UnderlyingPersistenceFactory}
 
 import scala.concurrent.Future
 import scala.util.Try
 
 class ReactiveMongoJournal(val aConfig: Config) extends AsyncWriteJournal {
-  private val persistInMemory: Boolean = context.system.settings.config.getBoolean("akka-persistence-reactivemongo.persist-in-memory")
-  private val asyncWriteJournalOps: AsyncWriteJournalOps =
-    if (!persistInMemory)
-      new ReactiveMongoJournalImpl(aConfig, context.system)
-    else
-      new InMemoryAsyncWriteJournal(context.system)
+
+  private val asyncWriteJournalOps: AsyncWriteJournalOps = UnderlyingPersistenceFactory(
+    new ReactiveMongoJournalImpl(aConfig, context.system),new InMemoryAsyncWriteJournal(context.system)
+  )(context.system)
 
   override def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]] =
     asyncWriteJournalOps.asyncWriteMessages(messages)

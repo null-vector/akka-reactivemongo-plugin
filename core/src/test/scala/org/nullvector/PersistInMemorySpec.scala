@@ -1,29 +1,21 @@
-package org.nullvector.journal
+package org.nullvector
 
-import java.time.{LocalDate, LocalDateTime}
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.Done
-import akka.actor.{ActorSystem, PoisonPill, Props}
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, BehaviorTestKit, TestInbox}
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, Extension, ExtensionId, ActorSystem => TypedActorSystem}
-import akka.persistence.{AtomicWrite, PersistentActor, PersistentRepr, SnapshotMetadata, SnapshotOffer, SnapshotSelectionCriteria}
-import akka.stream.Materializer
-import akka.stream.scaladsl.{Sink, Source}
+import akka.actor.typed.{ActorSystem => TypedActorSystem}
+import akka.actor.{ActorSystem, PoisonPill, Props}
+import akka.persistence._
 import com.typesafe.config.ConfigFactory
-import org.nullvector.query.ObjectIdOffset
+import org.nullvector.journal.InMemoryAsyncWriteJournal
 import org.nullvector.snapshot.InMemorySnapshotStore
-import org.nullvector.{EventAdapterFactory, PersistInMemory, ReactiveMongoEventSerializer}
 import org.scalatest.{FlatSpec, Matchers}
 import reactivemongo.api.bson.BSONDocument
 
-import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContextExecutor, Future, Promise}
-import scala.util.hashing.MurmurHash3
-import scala.util.{Failure, Random, Success, Try}
+import scala.concurrent.{Await, ExecutionContextExecutor, Promise}
+import scala.util.Random
 
 class PersistInMemorySpec extends FlatSpec with Matchers {
 
