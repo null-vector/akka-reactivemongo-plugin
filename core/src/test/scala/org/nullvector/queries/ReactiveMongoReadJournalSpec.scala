@@ -1,13 +1,15 @@
 package org.nullvector.queries
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, typed}
+import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.query.{EventEnvelope, NoOffset}
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit, TestKitBase}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.joda.time.DateTime
 import org.nullvector.journal.ReactiveMongoJournalImpl
@@ -18,16 +20,16 @@ import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.util.Random
 
-class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoReadJournal")) with ImplicitSender
+class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
 
-  import system.dispatcher
-
+  override lazy val system = typed.ActorSystem(Behaviors.empty,"ReactiveMongoPlugin").classicSystem
+  implicit lazy val dispatcher: ExecutionContextExecutor = system.dispatcher
   protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
-  private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
+  private val amountOfCores: Int = 10
 
   val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl(ConfigFactory.load(), system)
 
@@ -42,9 +44,7 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
     "Events by tag from NoOffset" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
       Await.result(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
@@ -126,65 +126,49 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
 
     "Events by tag from a given Offset" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
+      Await.ready(Source(1 to 10).mapAsync(10) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(3000)
-      val offset = ObjectIdOffset(DateTime.now())
-
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
+      Thread.sleep(700)
+      val offset = ObjectIdOffset.newOffset()
+      Await.ready(Source(1 to 10).mapAsync(10) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
       val eventualDone = readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
-      println(System.currentTimeMillis())
       val envelopes = Await.result(eventualDone, 14.seconds)
-      println(System.currentTimeMillis())
 
       envelopes.size shouldBe 250
     }
 
     "Infinite Events by tag" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
-
       readJournal.eventsByTag("event_tag_1", NoOffset).async.runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
-
-      Thread.sleep(1 * 1000)
-
+      Thread.sleep(700)
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(2 * 1000)
-
+      Thread.sleep(700)
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(3 * 1000)
-
+      Thread.sleep(700)
       envelopes.size shouldBe 500
     }
 
@@ -195,14 +179,14 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
       readJournal
         .eventsByTag("event_tag_1", NoOffset)
         .async
-        .addAttributes(RefreshInterval(50.millis))
+        .addAttributes(RefreshInterval(5.millis))
         .runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
       readJournal
         .eventsByTag("some_tag", NoOffset)
         .async
-        .addAttributes(RefreshInterval(50.millis))
+        .addAttributes(RefreshInterval(5.millis))
         .runWith(Sink.foreach(println))
       Thread.sleep(500)
 
@@ -222,18 +206,15 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         ))
       }.runWith(Sink.ignore), 14.seconds)
 
-      Thread.sleep(500)
+      Thread.sleep(600)
 
       envelopes.size shouldBe 150
     }
 
     "Infinite Events by Id" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
-
       val pId = s"$prefixReadColl-123"
       readJournal
         .eventsByPersistenceId(pId, 0L, Long.MaxValue)
@@ -241,84 +222,63 @@ class ReactiveMongoReadJournalSpec() extends TestKit(ActorSystem("ReactiveMongoR
         .runWith(Sink.foreach(e => envelopes.add(e))).recover {
         case e: Throwable => e.printStackTrace()
       }
-
-      Thread.sleep(1 * 1000)
-
+      Thread.sleep(700)
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         reactiveMongoJournalImpl.asyncWriteMessages(immutable.Seq(
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(2 * 1000)
-
+      Thread.sleep(700)
       Await.ready(Source(11 to 20).mapAsync(amountOfCores) { idx =>
         reactiveMongoJournalImpl.asyncWriteMessages(immutable.Seq(
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(3 * 1000)
-
+      Thread.sleep(700)
       envelopes.peek().persistenceId shouldBe pId
       envelopes.size shouldBe 20
     }
 
     "Infinite persistenceId" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
-      val ids = new ConcurrentLinkedQueue[String]()
-
+      val ids = new AtomicInteger()
       readJournal
         .persistenceIds()
         .async
-        .runWith(Sink.foreach(e => ids.add(e))).recover {
+        .runWith(Sink.foreach(e => ids.incrementAndGet())).recover {
         case e: Throwable => e.printStackTrace()
       }
-
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { collId =>
+      Await.ready(Source(1 to 10).mapAsync(10) { collId =>
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map { jIdx =>
           val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$collId", 23.45), persistenceId = pId, sequenceNr = 1))
         })
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(3 * 1000)
-
-      ids.size shouldBe 250
-
-      Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
+      Thread.sleep(2000)
+      ids.get() shouldBe 250
+      Await.ready(Source(1 to 10).mapAsync(10) { idx =>
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map { jIdx =>
           val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = 1))
         })
       }.runWith(Sink.ignore), 14.seconds)
-
-      Thread.sleep(3 * 1000)
-
-      ids.size shouldBe 500
+      Thread.sleep(2000)
+      ids.get() shouldBe 500
     }
 
     "current persistenceId" in {
       val prefixReadColl = "ReadCollection"
-
       dropAll()
-
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { collId =>
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map { jIdx =>
           val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$collId", 23.45), persistenceId = pId, sequenceNr = 1))
         })
       }.runWith(Sink.ignore), 14.seconds)
-
       val ids = Await.result(readJournal.currentPersistenceIds().async.runWith(Sink.seq), 14.seconds)
-
       ids.size shouldBe 250
-
     }
-
   }
 
   private def dropAll() = {

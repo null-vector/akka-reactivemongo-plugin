@@ -126,15 +126,10 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "create EventAdapter by hand" in {
     val jupiter: SolarPlanet = Jupiter
-
     implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
-
     implicit val a: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
-
     val eventAdapter = new EventAdapterMapping[SolarPlanet]("planet")
-
     val document = eventAdapter.payloadToBson(jupiter)
-
     document.getAsOpt[String]("_type").get should be("Jupiter")
     eventAdapter.bsonToPayload(document) should be(Jupiter)
   }

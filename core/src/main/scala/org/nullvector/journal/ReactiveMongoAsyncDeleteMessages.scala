@@ -2,10 +2,8 @@ package org.nullvector.journal
 
 import org.nullvector._
 import reactivemongo.api.bson.BSONDocument
-import reactivemongo.api.commands.CollectionCommand
 
 import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
 
 trait ReactiveMongoAsyncDeleteMessages {
   this: ReactiveMongoJournalImpl =>

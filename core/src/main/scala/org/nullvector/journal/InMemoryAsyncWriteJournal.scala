@@ -8,6 +8,7 @@ import org.nullvector.PersistInMemory.EventEntry
 import org.nullvector.{PersistInMemory, ReactiveMongoEventSerializer}
 import reactivemongo.api.bson.BSONDocument
 
+import scala.collection.immutable
 import scala.concurrent.Future
 import scala.util.{Success, Try}
 
@@ -20,15 +21,14 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
   private val eventSerializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system)
   private val persistInMemory: PersistInMemory = PersistInMemory(system.toTyped)
 
-  def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]] = {
-    Source(messages).mapAsync(15)(atomic =>
+  def asyncWriteMessages(messages: immutable.Seq[AtomicWrite]): Future[immutable.Seq[Try[Unit]]] = {
+    Source(messages).mapAsync(1)(atomic =>
       Source(atomic.payload)
-        .mapAsync(15)(eventSerializer.serialize)
+        .mapAsync(1)(eventSerializer.serialize)
         .map(slized => persistentRepr2EventEntry _ tupled slized)
         .runWith(Sink.seq)
-        .flatMap(events => persistInMemory.addEvents(atomic.persistenceId, events))
+        .flatMap(events => persistInMemory.addEvents(atomic.persistenceId, events).transform(tried => Try(tried.map(_ => ()))))
     )
-      .map(_ => Success(()))
       .runWith(Sink.seq)
   }
 
@@ -41,6 +41,7 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
     Source.future(persistInMemory.eventsOf(persistenceId))
       .mapConcat(identity)
+      .map(_.eventEntry)
       .filter(entry => entry.sequence >= fromSequenceNr && entry.sequence <= toSequenceNr)
       .mapAsync(15)(entry => eventSerializer.deserialize(entry.manifest, entry.event).map(payload => entry -> payload))
       .map(entryAndPayload => eventEntry2PersistentRepr(persistenceId) _ tupled entryAndPayload)
@@ -53,7 +54,7 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
   }
 
   def persistentRepr2EventEntry(rep: PersistentRepr, tags: Set[String]): EventEntry = {
-    EventEntry(rep.sequenceNr, rep.manifest, rep.payload.asInstanceOf[BSONDocument], tags)
+    EventEntry(rep.persistenceId, rep.sequenceNr, rep.manifest, rep.payload.asInstanceOf[BSONDocument], tags)
   }
 
   def eventEntry2PersistentRepr(persistenceId: String)(entry: EventEntry, payload: Any): PersistentRepr = {

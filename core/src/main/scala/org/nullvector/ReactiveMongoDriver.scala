@@ -2,6 +2,7 @@ package org.nullvector
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
+import com.typesafe.config.Config
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandException
@@ -59,13 +60,14 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
 
   class Collections() extends Actor with ActorLogging {
-    private val journalPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
-    private val snapshotPrefix = system.settings.config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
+    private val config: Config = system.settings.config
+    private val journalPrefix = config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
+    private val snapshotPrefix = config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
     private val verifiedNames: mutable.HashSet[String] = mutable.HashSet[String]()
 
     private val nameMapping: CollectionNameMapping = system.dynamicAccess.getClassFor[CollectionNameMapping](
-      system.settings.config.getString("akka-persistence-reactivemongo.collection-name-mapping")
-    ).get.newInstance()
+      config.getString("akka-persistence-reactivemongo.collection-name-mapping")
+    ).get.getDeclaredConstructor(classOf[Config]).newInstance(config)
 
     override def receive: Receive = {
       case GetJournalCollectionNameFor(persistentId, promise) =>

@@ -2,12 +2,13 @@ package org.nullvector.journal
 
 import akka.persistence.{AtomicWrite, PersistentRepr}
 
+import scala.collection.immutable
 import scala.concurrent.Future
 import scala.util.Try
 
 trait AsyncWriteJournalOps {
 
-  def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]]
+  def asyncWriteMessages(messages: immutable.Seq[AtomicWrite]): Future[immutable.Seq[Try[Unit]]]
 
   def asyncDeleteMessagesTo(persistenceId: String, toSequenceNr: Long): Future[Unit]
 

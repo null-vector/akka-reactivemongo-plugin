@@ -14,7 +14,6 @@ trait ReactiveMongoPlugin {
   val actorSystem: ActorSystem
 
   protected lazy val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(actorSystem)
-  protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(actorSystem)
   protected implicit lazy val dispatcher: ExecutionContext = actorSystem.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
 
 }

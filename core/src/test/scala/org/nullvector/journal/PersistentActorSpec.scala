@@ -1,10 +1,10 @@
 package org.nullvector.journal
 
 import akka.Done
-import akka.actor.{ActorSystem, Kill, PoisonPill, Props}
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.{ExtendedActorSystem, Kill, Props, typed}
 import akka.persistence.PersistentActor
-import akka.persistence.journal.Tagged
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKitBase}
 import org.nullvector.{EventAdapter, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
@@ -14,11 +14,13 @@ import scala.collection.immutable._
 import scala.concurrent.duration._
 import scala.util.Random
 
-class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
+class PersistentActorSpec() extends TestKitBase with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
 
+  override lazy val system = typed.ActorSystem(Behaviors.empty,"ReactiveMongoPlugin").classicSystem
+
   private val serializer = ReactiveMongoEventSerializer(system)
-  private val autoRestartFactory = new AutoRestartFactory(system)
+  private val autoRestartFactory = new AutoRestartFactory(system.asInstanceOf[ExtendedActorSystem])
 
   serializer.addEventAdapter(new AnEventEventAdapter)
 
@@ -75,10 +77,10 @@ class PersistentActorSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
       actorRef ! Command("Event One")
       actorRef ! Command("Event Two")
-      Thread.sleep(1000) //Give some time to delete messages
+      Thread.sleep(200) //Give some time to delete messages
       actorRef ! Command("delete")
       receiveN(3, 15.seconds)
-      Thread.sleep(1000) //Give some time to delete messages
+      Thread.sleep(200) //Give some time to delete messages
       actorRef ! Kill
       actorRef ! Command("get_state") //Will recover Nothing
       expectMsg(15.seconds, None)

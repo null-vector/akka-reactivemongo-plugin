@@ -51,11 +51,11 @@ trait EventsQueries
       .via(document2Envelope(manifestBasedSerialization))
   }
 
-  override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = Source
-    .fromGraph(new PullerGraph[EventEnvelope, Offset](
-      offset, defaultRefreshInterval, _.offset, greaterOffsetOf, o => currentEventsByTag(tag, o))
-    )
-    .flatMapConcat(identity)
+  override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
+    Source
+      .fromGraph(new PullerGraph[EventEnvelope, Offset](
+        offset, defaultRefreshInterval, _.offset, greaterOffsetOf, o => currentEventsByTag(tag, o)))
+      .flatMapConcat(identity)
 
   /*
     * Query events that have a specific tag. Those events matching target tags would
@@ -103,7 +103,7 @@ trait EventsQueries
             event.getAsOpt[String](Fields.persistenceId).get,
             event.getAsOpt[Long](Fields.sequence).get,
             payload,
-            offset.bsonObjectId.time
+            offset.id.time
           )
         })
     }

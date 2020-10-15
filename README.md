@@ -1,29 +1,19 @@
 # Akka Persistence Plugin for MongoDB
 [![CircleCI](https://circleci.com/gh/null-vector/akka-reactivemongo-plugin.svg?style=svg)](https://circleci.com/gh/null-vector/akka-reactivemongo-plugin)
 [![codecov](https://codecov.io/gh/null-vector/akka-reactivemongo-plugin/branch/master/graph/badge.svg)](https://codecov.io/gh/null-vector/akka-reactivemongo-plugin)
+[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
 
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin support scala `2.12` and `2.13`, akka `2.6.1` and reactivemongo `0.18.x` and `0.20.x`.
+This plugin support scala `2.13`, akka `2.6.10` and reactivemongo `1.0.0`.
 
 Add in your `build.sbt` the following lines:
 ```scala
 resolvers += Resolver.bintrayRepo("null-vector", "releases")
 ```
-For reactivemongo `0.18.x` use:
-
-[![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg?version=1.2.11) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/1.2.11/link)
-
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.2.x"
-```
-For reactivemongo `0.20.x` use:
-
-[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
-
-```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.3.x"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.0"
 ```
 
 ## Configuration
@@ -39,36 +29,7 @@ akka-persistence-reactivemongo {
 See [Connect to a database](http://reactivemongo.org/releases/0.1x/documentation/tutorial/connect-database.html) for more information.
 
 ## Events Adapters
-Before save any event for you `PersistentActor` it is needed to add the corresponding `EventAdapter`.
-
-Events adapters must extends from `org.nullvector.EventAdapter[E]`, for example:
-
-```scala
-class UserAddedEventAdapter extends EventAdapter[UserAdded] {
-
-    private implicit val userAddedMapping: BSONDocumentHandler[UserAdded] = Macros.handler[UserAdded]
-
-    override val manifest: String = "UserAdded"
-
-    override def payloadToBson(payload: UserAdded): BSONDocument = BSON.writeDocument(payload).get
-
-    override def bsonToPayload(doc: BSONDocument): UserAdded = BSON.readDocument(doc).get
-
-}
-```
-And then you have to register the new Adapter:
-```scala
-  val serializer = ReactiveMongoEventSerializer(system)
-
-  serializer.addEventAdapter(new UserAddedEventAdapter)
-```
-A more simple way to create an event adapter by hand is using `EventAdapterMapping`:
-```scala
-    implicit val mapping: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
-    val eventAdapter = new EventAdapterMapping[SolarPlanet](manifest = "planet")
-```
-## EventAdapter Factory
-To avoid writing boilerplate code creating Event Adapters, we can use the `EventAdapterFactory`:
+Before save any event from your persistent actor it is needed to register the corresponding `EventAdapter`.
 ```scala
 case class ProductId(id: String) extends AnyVal
 case class InvoiceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
@@ -76,7 +37,7 @@ case class InvoiceItemAdded(invoiceItem: InvoiceItem)
 
 val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
 
-ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
+ReactiveMongoEventSerializer(actorSystem).addEventAdapter(eventAdapter)
 ```
 It is also possible to override mappings or add unsupported mappings. All added mappings must extends from `BSONReader[_]` or `BSONWriter[_]` or both.
 ```scala
@@ -101,16 +62,27 @@ case class InvoiceLineAdded(line: InvoiceLine)
 implicit val conf = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
 val eventAdapter = EventAdapterFactory.adapt[InvoceLineAdded](withManifest = "InvoiceLineAdded")
 ```
+Behind the scene `EventAdapterFactory` use the ReactiveMongo Macros, so you can configure the BSON mappings:
+```scala
+implicit val conf: Aux[MacroOptions] = MacroConfiguration(discriminator = "_type", typeNaming = TypeNaming.SimpleName)
+```
+### Custom mappings
+You can create mappings by hand:
+```scala
+implicit val a: BSONDocumentMapping[SolarPlanet] = EventAdapterFactory.mappingOf[SolarPlanet]
+val eventAdapter = new EventAdapterMapping[SolarPlanet]("planet")
+
+serializer.addEventAdapter(eventAdapter)
+```
 
 ## Persistence Id
-By default the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the journal collection.
+By default, the persistence id has the following form: `<Aggregate>-<Id>`, and the aggregate will be the name of the MongoDB collection.
 
-You can change the persistence id format by adding your own collection extractor name, implementing the trait `org.nullvector.CollectionNameMapping`,
-and registering in the configuration:
+You can change the persistence id separator character:
 ```
 akka-persistence-reactivemongo {
   mongo-uri = "mongodb://localhost/test?rm.failover=900ms:21x1.30"
-  collection-name-mapping = "org.nullvector.DefaultCollectionNameMapping"
+  persistence-id-separator = |
 }
 ```
 
@@ -119,7 +91,6 @@ akka-persistence-reactivemongo {
 Here are some examples of how to use persistence query:
 ```scala
 val readJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
-
 val tagsSource: Source[EventEnvelope, NotUsed] = readJournal.currentEventsByTag("some_tag", NoOffset)
 
 tagsSource.runWith(Sink.foreach{ envelope => envelope.event match {
@@ -127,9 +98,9 @@ tagsSource.runWith(Sink.foreach{ envelope => envelope.event match {
 }})
 ```
 
-Sometime is necesary to create an Offset:
+Sometime is necessary to create an Offset:
 ```scala
-val offset = ObjectIdOffset(DateTime.now())
+val offset = ObjectIdOffset.fromDateTime(DateTime.now()) // A Joda DateTime
 ```
 For streams that never complete like `#persistenceIds`, `#eventsByTag`, etc. it is possible to configure the interval that pulls from the journal:
 ```
@@ -146,4 +117,12 @@ If you want different refresh intervals from different query, you can add a `Ref
     .eventsByTag("some_tag", NoOffset)
     .addAttributes(RefreshInterval(700.millis))
     .runWith(Sink.foreach(println))
+```
+
+# Test Driven Development
+Here is a great feature for TDD lovers: it is possible to configure the plugin to persist in memory and reduce the test latency more than half.
+```
+akka-persistence-reactivemongo {
+  persist-in-memory = true
+}
 ```

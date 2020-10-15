@@ -22,12 +22,13 @@ class PullerGraph[D, O](
 
   override def createLogic(attributes: Attributes): GraphStageLogic = new TimerGraphStageLogic(shape) {
 
-    private val effectiveRefreshInterval: FiniteDuration = attributes.get[RefreshInterval].map(_.interval).getOrElse(refreshInterval)
+    private val effectiveRefreshInterval: FiniteDuration = attributes.get[RefreshInterval].fold(refreshInterval)(_.interval)
     var currentOffset: O = initialOffset
     var eventStreamConsuming = false
 
     private val updateConsumingState: AsyncCallback[Boolean] = createAsyncCallback[Boolean](eventStreamConsuming = _)
-    private val updateCurrentOffset: AsyncCallback[O] = createAsyncCallback[O](currentOffset = _)
+    private val updateCurrentOffset: AsyncCallback[D] =
+      createAsyncCallback[D](event => currentOffset = graterOf(currentOffset, offsetOf(event)))
 
     setHandler(outlet, new OutHandler {
       override def onPull(): Unit = {}
@@ -40,15 +41,13 @@ class PullerGraph[D, O](
     override protected def onTimer(timerKey: Any): Unit = {
       if (isAvailable(outlet) && !eventStreamConsuming) {
         eventStreamConsuming = true
-        push(outlet, nextChunk(currentOffset).map { entry =>
-          updateCurrentOffset.invoke(graterOf(currentOffset, offsetOf(entry)))
-          entry
-        }
-          .watchTermination() { (_, future) =>
+        val source = nextChunk(currentOffset)
+          .mapAsync(1)(entry => updateCurrentOffset.invokeWithFeedback(entry).map(_ => entry))
+          .watchTermination() { (mat, future) =>
             future.onComplete { _ => updateConsumingState.invoke(false) }
-            NotUsed
+            mat
           }
-        )
+        push(outlet, source)
       }
     }
 

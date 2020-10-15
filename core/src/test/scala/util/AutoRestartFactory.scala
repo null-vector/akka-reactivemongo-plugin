@@ -1,14 +1,17 @@
 package util
 
-import akka.actor.{Actor, ActorRef, ActorSystem, OneForOneStrategy, Props, SupervisorStrategy}
+import akka.actor.{Actor, ActorRef, ActorSystem, ExtendedActorSystem, OneForOneStrategy, Props, SupervisorStrategy}
 import akka.util.Timeout
+
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import akka.pattern._
 
-class AutoRestartFactory(system: ActorSystem) {
+class AutoRestartFactory(system: ExtendedActorSystem) {
 
-  private val autoRestartRef: ActorRef = system.actorOf(Props(new AutoRestartSupervisor))
+  import akka.actor.typed.scaladsl.adapter._
+
+  private val autoRestartRef: ActorRef = system.systemActorOf(Props(new AutoRestartSupervisor), "Culo")
 
   def create(props: Props, name: String): ActorRef = {
     Await.result((autoRestartRef ? (props, name)) (Timeout(1.second)).mapTo[ActorRef], 1.second)

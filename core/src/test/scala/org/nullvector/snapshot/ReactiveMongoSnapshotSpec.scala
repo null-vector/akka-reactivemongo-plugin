@@ -2,9 +2,10 @@ package org.nullvector.snapshot
 
 import java.util.Date
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, typed}
+import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.{SnapshotMetadata, SnapshotSelectionCriteria}
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestKit, TestKitBase}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
@@ -13,10 +14,11 @@ import reactivemongo.api.bson.{BSONDocument, Macros}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class ReactiveMongoSnapshotSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) with ImplicitSender
+class ReactiveMongoSnapshotSpec() extends TestKitBase with ImplicitSender
   with WordSpecLike with Matchers with BeforeAndAfterAll {
 
-  import system.dispatcher
+  override lazy val system = typed.ActorSystem(Behaviors.empty, "ReactiveMongoPlugin").classicSystem
+  implicit lazy val ec = system.dispatcher
 
   val snapshotter: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(ConfigFactory.load(), system)
 

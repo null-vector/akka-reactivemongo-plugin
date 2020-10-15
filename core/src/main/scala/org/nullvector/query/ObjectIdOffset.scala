@@ -5,19 +5,19 @@ import org.joda.time.DateTime
 import reactivemongo.api.bson.BSONObjectID
 
 object ObjectIdOffset {
-  def apply(dateTime: DateTime): ObjectIdOffset = {
-    val objectID = BSONObjectID.fromTime(dateTime.getMillis)
-    new ObjectIdOffset(objectID)
+
+  def fromDateTime(dateTime: DateTime): ObjectIdOffset = {
+    new ObjectIdOffset(BSONObjectID.fromTime(dateTime.getMillis))
   }
 
-  def newOffset(): ObjectIdOffset = new ObjectIdOffset(BSONObjectID.fromTime(System.currentTimeMillis()))
+  def newOffset(): ObjectIdOffset = new ObjectIdOffset(BSONObjectID.generate())
 }
 
-case class ObjectIdOffset(bsonObjectId: BSONObjectID) extends Offset with Ordered[ObjectIdOffset] {
+case class ObjectIdOffset(id: BSONObjectID) extends Offset with Ordered[ObjectIdOffset] {
 
-  override val toString: String = s"id:${bsonObjectId.stringify} time:${bsonObjectId.time}"
+  override val toString: String = s"Offset(${id.stringify})"
 
-  override def compare(that: ObjectIdOffset): Int = bsonObjectId.stringify.compare(that.bsonObjectId.stringify)
+  override def compare(that: ObjectIdOffset): Int = BigInt(id.byteArray).compare(BigInt(that.id.byteArray))
 }
 
 

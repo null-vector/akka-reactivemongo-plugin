@@ -16,6 +16,7 @@ import reactivemongo.api.bson.BSONDocument
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Promise}
 import scala.util.Random
+import collection.immutable.Seq
 
 class PersistInMemorySpec extends FlatSpec with Matchers {
 
@@ -30,12 +31,12 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
   it should " add event in Memory" in {
     val persistInMemoryBehavior = BehaviorTestKit(PersistInMemory.behavior())
     val persistenceId = "my-id"
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(1, "Event1", BSONDocument("x" -> "y"), Set.empty))))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 1, "Event1", BSONDocument("x" -> "y"), Set.empty)), Right(Promise[Done]())))
 
-    val replyEvents = TestInbox[Seq[EventEntry]]()
+    val replyEvents = TestInbox[Seq[EventWithOffset]]()
     persistInMemoryBehavior.run(EventsOf(persistenceId, Left(replyEvents.ref)))
     val events = replyEvents.receiveMessage()
-    events.head.event shouldBe BSONDocument("x" -> "y")
+    events.head.eventEntry.event shouldBe BSONDocument("x" -> "y")
   }
 
   it should " add snapshot in Memory" in {
@@ -52,23 +53,23 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
   it should " remove event from Memory" in {
     val persistInMemoryBehavior = BehaviorTestKit(PersistInMemory.behavior())
     val persistenceId = "my-id"
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(1, "Event1", BSONDocument(), Set.empty))))
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(2, "Event2", BSONDocument("a" -> "b"), Set.empty))))
-    persistInMemoryBehavior.run(RemoveEventsOf(persistenceId, 1))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 1, "Event1", BSONDocument(), Set.empty)), Right(Promise[Done]())))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 2, "Event2", BSONDocument("a" -> "b"), Set.empty)), Right(Promise[Done]())))
+    persistInMemoryBehavior.run(RemoveEventsOf(persistenceId, 1, Right(Promise[Done]())))
 
-    val replyEvents = TestInbox[Seq[EventEntry]]()
+    val replyEvents = TestInbox[Seq[EventWithOffset]]()
     persistInMemoryBehavior.run(EventsOf(persistenceId, Left(replyEvents.ref)))
     val events = replyEvents.receiveMessage()
-    events.head.event shouldBe BSONDocument("a" -> "b")
+    events.head.eventEntry.event shouldBe BSONDocument("a" -> "b")
   }
 
   it should " max sequence from Memory" in {
     val persistInMemoryBehavior = BehaviorTestKit(PersistInMemory.behavior())
     val persistenceId = "my-id"
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(1, "Event1", BSONDocument(), Set.empty))))
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(2, "Event2", BSONDocument(), Set.empty))))
-    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(3, "Event3", BSONDocument(), Set.empty))))
-    persistInMemoryBehavior.run(RemoveEventsOf(persistenceId, 1))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 1, "Event1", BSONDocument(), Set.empty)), Right(Promise[Done]())))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 2, "Event2", BSONDocument(), Set.empty)), Right(Promise[Done]())))
+    persistInMemoryBehavior.run(Persist(persistenceId, Seq(EventEntry(persistenceId, 3, "Event3", BSONDocument(), Set.empty)), Right(Promise[Done]())))
+    persistInMemoryBehavior.run(RemoveEventsOf(persistenceId, 1, Right(Promise[Done]())))
 
     val replyMaxSeq = TestInbox[Long]()
     persistInMemoryBehavior.run(HighestSequenceOf(persistenceId, Left(replyMaxSeq.ref)))
@@ -80,8 +81,8 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     val persistInMemory = PersistInMemory(actorSystem)
     val persistenceId = randomPersistenceId
 
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(1, "Event1", BSONDocument(), Set.empty)))
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(2, "Event2", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 1, "Event1", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 2, "Event2", BSONDocument(), Set.empty)))
 
     val events = Await.result(persistInMemory.eventsOf(persistenceId), 1.second)
     events.size shouldBe 2
@@ -102,8 +103,8 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     val persistInMemory = PersistInMemory(actorSystem)
     val persistenceId = randomPersistenceId
 
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(23, "Event1", BSONDocument(), Set.empty)))
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(25, "Event2", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 23, "Event1", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 25, "Event2", BSONDocument(), Set.empty)))
 
     val maxSeq = Await.result(persistInMemory.highestSequenceOf(persistenceId), 1.second)
     maxSeq shouldBe 25
@@ -113,8 +114,8 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     val persistInMemory = PersistInMemory(actorSystem)
     val persistenceId = randomPersistenceId
 
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(23, "Event1", BSONDocument(), Set.empty)))
-    persistInMemory.addEvents(persistenceId, Seq(EventEntry(25, "Event2", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 23, "Event1", BSONDocument(), Set.empty)))
+    persistInMemory.addEvents(persistenceId, Seq(EventEntry(persistenceId, 25, "Event2", BSONDocument(), Set.empty)))
     persistInMemory.addSnapshot(persistenceId, SnapshotEntry(27, "Snpsht", BSONDocument(), 1))
     persistInMemory.addSnapshot(persistenceId, SnapshotEntry(27, "Snpsht", BSONDocument(), 2))
 
@@ -260,7 +261,7 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     val persistorRef1 = inMemoryAS.actorOf(persistorProps(pId))
 
     {
-      persistorRef1 ! ChangeStatus(Seq(StatusEvent("Greetings")),  Promise[Done]())
+      persistorRef1 ! ChangeStatus(Seq(StatusEvent("Greetings")), Promise[Done]())
       val promisedDone = Promise[Done]()
       persistorRef1 ! SnapshotStatus(promisedDone)
       Await.result(promisedDone.future, 1.second)

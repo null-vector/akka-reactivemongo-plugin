@@ -12,6 +12,8 @@ import scala.util.{Failure, Success, Try}
 
 class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem) extends ReactiveMongoPlugin with SnapshotStoreOps {
 
+  protected val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(actorSystem)
+
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
     for {
       collection <- rxDriver.snapshotCollection(persistenceId)
@@ -68,7 +70,7 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
       Fields.snapshot_payload -> payload,
       Fields.manifest -> maybeManifest,
     ))
-      .map(result => if (result.writeErrors.isEmpty) Success() else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n"))))
+      .map(result => if (result.writeErrors.isEmpty) Success(()) else Failure(new Exception(result.writeErrors.map(_.toString).mkString("\n"))))
   }
 
   def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = {

@@ -1,11 +1,11 @@
 package org.nullvector.journal
 
-import akka.actor.ActorSystem
-import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.persistence.journal.AsyncWriteJournal
+import akka.persistence.{AtomicWrite, PersistentRepr}
 import com.typesafe.config.Config
-import org.nullvector.{PersistInMemory, UnderlyingPersistenceFactory}
+import org.nullvector.UnderlyingPersistenceFactory
 
+import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.util.Try
 
