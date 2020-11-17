@@ -54,14 +54,14 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     adapterRegistryRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
 
   def loadAkkaAdaptersFrom(path: String): Unit = {
-    import scala.collection.JavaConverters._
+    import scala.jdk.CollectionConverters._
 
     val akkaAdaptersConfig = system.settings.config.getConfig(path)
     val akkaAdapters = akkaAdaptersConfig.getConfig("event-adapters").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
     val eventTypesBindings = akkaAdaptersConfig.getConfig("event-adapter-bindings").entrySet().asScala
       .map(e => e.getKey.replace("\"", "") -> e.getValue.render().replace("\"", "")).toMap
-    val akkaAdapterClasses = akkaAdapters.mapValues(value => system.dynamicAccess.getClassFor[Any](value).get.asInstanceOf[Class[AkkaEventAdapter]])
+    val akkaAdapterClasses = akkaAdapters.view.mapValues(value => system.dynamicAccess.getClassFor[Any](value).get.asInstanceOf[Class[AkkaEventAdapter]])
 
     val wrappers = eventTypesBindings
       .map((t: (String, String)) => system.dynamicAccess.getClassFor[Any](t._1).get -> akkaAdapterClasses(t._2))
@@ -74,7 +74,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   private def newAkkaAdapter(akkaAdapterClass: Class[AkkaEventAdapter]): AkkaEventAdapter = {
     akkaAdapterClass.getConstructors.find(_.getParameterTypes sameElements Array(classOf[ExtendedActorSystem])) match {
       case Some(constructor) => constructor.newInstance(system).asInstanceOf[AkkaEventAdapter]
-      case None => akkaAdapterClass.newInstance()
+      case None => akkaAdapterClass.getDeclaredConstructor().newInstance()
     }
   }
 

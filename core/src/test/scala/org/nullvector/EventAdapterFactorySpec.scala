@@ -3,6 +3,7 @@ package org.nullvector
 import akka.actor.ActorSystem
 import org.nullvector.domain.Money.Currency
 import org.nullvector.domain._
+import org.nullvector.domain.category.MainCategory.{BranchCategory2, RootCategory2, TerminalCategory2}
 import org.nullvector.domain.planets.{Earth, Jupiter, ListPlanets, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
 import org.scalatest.Matchers._
 import org.scalatest._
@@ -119,7 +120,7 @@ class EventAdapterFactorySpec extends FlatSpec {
     val eventAdapter = EventAdapterFactory.adapt[ListPlanets]("x")
 
     val document = eventAdapter.payloadToBson(listPlanets)
-//    println(BSONDocument.pretty(document))
+    //    println(BSONDocument.pretty(document))
 
     eventAdapter.bsonToPayload(document) should be(listPlanets)
   }
@@ -173,6 +174,36 @@ class EventAdapterFactorySpec extends FlatSpec {
     val order = Order(OrderId(12767), Seq(Product("test", Money.ars(345))))
     val doc = BSON.writeDocument(order).get
     BSON.readDocument[Order](doc).get shouldBe order
+  }
+
+  it should "recursive mapping" in {
+    import org.nullvector.domain.category.MainCategory._
+    implicit val categoryMapping = EventAdapterFactory.mappingOf[Category]
+    val aCategory = Category("A", List(Category("B", List(Category("C", Nil)))))
+    val doc = BSON.writeDocument(aCategory).get
+    println(BSONDocument.pretty(doc))
+
+  }
+
+  it should "recursive mapping indirect recursive Type" in {
+    implicit val categoryMapping = EventAdapterFactory.mappingOf[RootCategory2]
+    val aCategory = RootCategory2("Root", BranchCategory2("A", List(BranchCategory2("B", List(TerminalCategory2("C"))))))
+    val doc = BSON.writeDocument(aCategory).get
+    println(BSONDocument.pretty(doc))
+  }
+
+  it should "adapt recursive Type mapping" in {
+    implicit val adapter = EventAdapterFactory.adapt[RootCategory2]("RecursiveTypeAdapted")
+    val aCategory = RootCategory2("Root", BranchCategory2("A", List(BranchCategory2("B", List(TerminalCategory2("C"))))))
+    val doc = adapter.payloadToBson(aCategory)
+    println(BSONDocument.pretty(doc))
+  }
+
+  it should "mapping recursive Type mapping with before read" in {
+    implicit val m = EventAdapterFactory.mappingOf[RootCategory2]((doc:BSONDocument) => doc)
+    val aCategory = RootCategory2("Root", BranchCategory2("A", List(BranchCategory2("B", List(TerminalCategory2("C"))))))
+    val doc = BSON.writeDocument(aCategory).get
+    println(BSONDocument.pretty(doc))
   }
 
 }
