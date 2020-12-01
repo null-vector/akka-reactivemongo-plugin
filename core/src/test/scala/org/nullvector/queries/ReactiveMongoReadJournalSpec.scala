@@ -288,7 +288,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
       .runWith(Sink.ignore), 14.seconds)
   }
 
-  override def afterAll: Unit = {
+  override def afterAll(): Unit = {
     shutdown()
   }
 

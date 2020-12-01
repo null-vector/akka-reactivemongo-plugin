@@ -89,7 +89,7 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
 
   }
 
-  override def afterAll: Unit = {
+  override def afterAll(): Unit = {
     shutdown()
   }
 

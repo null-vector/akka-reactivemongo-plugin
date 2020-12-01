@@ -11,7 +11,7 @@ import scala.reflect.ClassTag
 
 object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerializer] with ExtensionIdProvider {
 
-  override def lookup(): ExtensionId[_ <: Extension] = ReactiveMongoEventSerializer
+  override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoEventSerializer
 
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoEventSerializer =
     new ReactiveMongoEventSerializer(system)

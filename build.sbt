@@ -1,12 +1,12 @@
-lazy val scala213 = "2.13.3"
+lazy val scala213 = "2.13.4"
 lazy val supportedScalaVersions = List(scala213)
 lazy val akkaVersion = "2.6.10"
-lazy val rxmongoVersion = "1.0.0"
+lazy val rxmongoVersion = "1.0.1"
 
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
-  version := "1.4.1",
+  version := "1.4.2",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersions,
   scalacOptions := Seq(
@@ -16,7 +16,9 @@ lazy val commonSettings = Seq(
     "-feature",
     "-unchecked",
     "-language:implicitConversions",
-    "-language:postfixOps"
+    "-language:postfixOps",
+    "-Ybackend-parallelism",
+    "4",
   ),
   resolvers += "Akka Maven Repository" at "https://akka.io/repository",
 

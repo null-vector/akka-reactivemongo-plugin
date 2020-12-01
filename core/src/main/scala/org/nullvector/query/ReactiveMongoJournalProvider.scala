@@ -7,7 +7,7 @@ import org.nullvector.snapshot.{InMemorySnapshotStore, ReactiveMongoSnapshotImpl
 
 object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProvider] with ExtensionIdProvider {
 
-  override def lookup(): ExtensionId[_ <: Extension] = ReactiveMongoJournalProvider
+  override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoJournalProvider
 
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoJournalProvider = new ReactiveMongoJournalProvider(system)
 }

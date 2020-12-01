@@ -85,7 +85,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     an[Exception] should be thrownBy Await.result(eventualTuple, 1.second)
   }
 
-  override def afterAll: Unit = {
+  override def afterAll(): Unit = {
     shutdown()
   }
 
