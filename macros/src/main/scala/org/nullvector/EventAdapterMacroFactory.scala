@@ -72,7 +72,7 @@ private object EventAdapterMacroFactory {
     val code =
       q"""
         import reactivemongo.api.bson._
-        val f = new Function0[EventAdapter[${eventTypeTag.tpe}]] {
+        val f = new Function0[org.nullvector.EventAdapter[${eventTypeTag.tpe}]] {
           ..$imports
           ..$handlers
           val adapter = $createEventAdapter

@@ -1,12 +1,12 @@
 # Akka Persistence Plugin for MongoDB
 [![CircleCI](https://circleci.com/gh/null-vector/akka-reactivemongo-plugin.svg?style=svg)](https://circleci.com/gh/null-vector/akka-reactivemongo-plugin)
 [![codecov](https://codecov.io/gh/null-vector/akka-reactivemongo-plugin/branch/master/graph/badge.svg)](https://codecov.io/gh/null-vector/akka-reactivemongo-plugin)
-[ ![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
+[![Download](https://api.bintray.com/packages/null-vector/releases/akka-reactivemongo-plugin/images/download.svg) ](https://bintray.com/null-vector/releases/akka-reactivemongo-plugin/_latestVersion)
 
 This implementation use the [reactivemongo drive](http://reactivemongo.org/).
 
 ## Installation
-This plugin support scala `2.13`, akka `2.6.10` and reactivemongo `1.0.0`.
+This plugin support scala `2.13`, akka `2.6.10` and reactivemongo `1.0.1`.
 
 Add in your `build.sbt` the following lines:
 ```scala
