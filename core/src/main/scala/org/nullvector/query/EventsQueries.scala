@@ -41,7 +41,7 @@ trait EventsQueries
         (_, fromToSequences) => fromToSequences,
         offset => currentEventsByPersistenceId(persistenceId, offset._1, offset._2)
       ))
-      .flatMapConcat(identity)
+      .mapConcat(identity)
   }
 
   override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
@@ -54,8 +54,8 @@ trait EventsQueries
   override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
     Source
       .fromGraph(new PullerGraph[EventEnvelope, Offset](
-        offset, defaultRefreshInterval, _.offset, greaterOffsetOf, o => currentEventsByTag(tag, o)))
-      .flatMapConcat(identity)
+        offset, defaultRefreshInterval, _.offset, greaterOffsetOf, offset => currentEventsByTag(tag, offset)))
+      .mapConcat(identity)
 
   /*
     * Query events that have a specific tag. Those events matching target tags would
@@ -83,11 +83,11 @@ trait EventsQueries
   }
 
   private def eventsByTagQuery(tags: Seq[String], offset: Offset)(implicit serializableMethod: (BSONDocument, BSONDocument) => Future[Any]): Source[EventEnvelope, NotUsed] = {
-    Source.lazyFuture(() => rxDriver.journals())
+    Source.future(rxDriver.journals())
       .mapConcat(identity)
       .splitWhen(_ => true)
       .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
-      .mergeSubstreams
+      .mergeSubstreamsWithParallelism(amountOfCores)
       .via(document2Envelope(serializableMethod))
   }
 
@@ -110,7 +110,6 @@ trait EventsQueries
 
   private def buildFindEventsByTagsQuery(coll: collection.BSONCollection, offset: Offset, tags: Seq[String]) = {
     def query(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
-
     coll
       .aggregateWith[BSONDocument]()(framework =>
         List(

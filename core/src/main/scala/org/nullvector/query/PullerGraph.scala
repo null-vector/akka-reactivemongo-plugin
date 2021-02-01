@@ -3,54 +3,70 @@ package org.nullvector.query
 import akka.NotUsed
 import akka.stream.scaladsl.Source
 import akka.stream.stage._
-import akka.stream.{Attributes, Outlet, SourceShape}
+import akka.stream.{Attributes, Materializer, Outlet, SourceShape}
+import org.slf4j.{Logger, LoggerFactory}
 
-import scala.concurrent.ExecutionContext
+import scala.collection.mutable
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, Future}
 
-class PullerGraph[D, O](
-                         initialOffset: O,
-                         refreshInterval: FiniteDuration,
-                         offsetOf: D => O,
-                         graterOf: (O, O) => O,
-                         nextChunk: O => Source[D, NotUsed],
-                       )(implicit ec: ExecutionContext) extends GraphStage[SourceShape[Source[D, NotUsed]]] {
+class PullerGraph[Element, Offset](
+                                    initialOffset: Offset,
+                                    refreshInterval: FiniteDuration,
+                                    offsetOf: Element => Offset,
+                                    greaterOf: (Offset, Offset) => Offset,
+                                    query: Offset => Source[Element, NotUsed],
+                                  )(implicit ec: ExecutionContext, mat: Materializer) extends GraphStage[SourceShape[Seq[Element]]] {
 
-  private val outlet: Outlet[Source[D, NotUsed]] = Outlet[Source[D, NotUsed]]("PullerGraph.OUT")
+  private val outlet: Outlet[Seq[Element]] = Outlet[Seq[Element]]("PullerGraph.OUT")
 
-  override def shape: SourceShape[Source[D, NotUsed]] = SourceShape.of(outlet)
+  override def shape: SourceShape[Seq[Element]] = SourceShape.of(outlet)
 
   override def createLogic(attributes: Attributes): GraphStageLogic = new TimerGraphStageLogic(shape) {
-
+    var currentOffset: Offset = initialOffset
     private val effectiveRefreshInterval: FiniteDuration = attributes.get[RefreshInterval].fold(refreshInterval)(_.interval)
-    var currentOffset: O = initialOffset
-    var eventStreamConsuming = false
+    private val updateCurrentOffset = createAsyncCallback[Offset](offset => currentOffset = offset)
+    private val failAsync = createAsyncCallback[Throwable](throwable => failStage(throwable))
+    private val pushElements = createAsyncCallback[Seq[Element]](elements => push(outlet, elements))
 
-    private val updateConsumingState: AsyncCallback[Boolean] = createAsyncCallback[Boolean](eventStreamConsuming = _)
-    private val updateCurrentOffset: AsyncCallback[D] =
-      createAsyncCallback[D](event => currentOffset = graterOf(currentOffset, offsetOf(event)))
-
+    private val timerName = "timer"
     setHandler(outlet, new OutHandler {
-      override def onPull(): Unit = {}
+      override def onPull() = scheduleNext()
 
-      override def onDownstreamFinish(cause: Throwable): Unit = cancelTimer("timer")
+      override def onDownstreamFinish(cause: Throwable) = cancelTimer(timerName)
     })
 
-    override def preStart(): Unit = scheduleWithFixedDelay("timer", effectiveRefreshInterval, effectiveRefreshInterval)
+    override protected def onTimer(timerKey: Any) = {
+      query(currentOffset)
+        .runFold(new Accumulator(currentOffset))((acc, element) => acc.update(element))
+        .flatMap(_.pushOrScheduleNext())
+        .recover { case throwable: Throwable => failAsync.invoke(throwable) }
+    }
 
-    override protected def onTimer(timerKey: Any): Unit = {
-      if (isAvailable(outlet) && !eventStreamConsuming) {
-        eventStreamConsuming = true
-        val source = nextChunk(currentOffset)
-          .mapAsync(1)(entry => updateCurrentOffset.invokeWithFeedback(entry).map(_ => entry))
-          .watchTermination() { (mat, future) =>
-            future.onComplete { _ => updateConsumingState.invoke(false) }
-            mat
-          }
-        push(outlet, source)
+    private def scheduleNext() = {
+      if (!isTimerActive(timerName)) {
+        scheduleOnce(timerName, effectiveRefreshInterval)
+      }
+    }
+
+    class Accumulator(private var latestOffset: Offset, private val elements: mutable.Buffer[Element] = mutable.Buffer.empty) {
+
+      def update(anElement: Element): Accumulator = {
+        latestOffset = greaterOf(latestOffset, offsetOf(anElement))
+        elements.append(anElement)
+        this
+      }
+
+      def pushOrScheduleNext(): Future[Unit] = {
+        if (elements.nonEmpty) {
+          for {
+            _ <- updateCurrentOffset.invokeWithFeedback(latestOffset)
+            _ <- pushElements.invokeWithFeedback(elements.toSeq)
+          } yield ()
+        }
+        else Future.successful(scheduleNext())
       }
     }
 
   }
-
 }

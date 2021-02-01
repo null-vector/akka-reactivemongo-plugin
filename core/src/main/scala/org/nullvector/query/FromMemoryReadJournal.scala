@@ -3,6 +3,7 @@ package org.nullvector.query
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
+import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import org.nullvector.PersistInMemory.EventWithOffset
 import org.nullvector.{PersistInMemory, ReactiveMongoEventSerializer}
@@ -12,6 +13,7 @@ import scala.concurrent.{ExecutionContextExecutor, Future}
 
 class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoScalaReadJournal {
   private implicit val ec: ExecutionContextExecutor = actorSystem.executionContext
+  private implicit val mat: Materializer = Materializer.matFromSystem(actorSystem)
   private val memory: PersistInMemory = PersistInMemory(actorSystem)
   private val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(actorSystem)
   val defaultRefreshInterval: FiniteDuration = 500.millis
@@ -28,7 +30,7 @@ class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoSc
       .fromGraph(
         new PullerGraph[EventEnvelope, Offset](offset, defaultRefreshInterval, _.offset, greaterOffsetOf, offset => currentEventsByTag(tag, offset))
       )
-      .flatMapConcat(identity)
+      .mapConcat(identity)
 
   override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
     currentEventsByTags(Seq(tag), offset)

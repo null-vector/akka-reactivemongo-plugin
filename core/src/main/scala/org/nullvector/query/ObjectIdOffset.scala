@@ -17,7 +17,7 @@ case class ObjectIdOffset(id: BSONObjectID) extends Offset with Ordered[ObjectId
 
   override val toString: String = s"Offset(${id.stringify})"
 
-  override def compare(that: ObjectIdOffset): Int = BigInt(id.byteArray).compare(BigInt(that.id.byteArray))
+  override def compare(that: ObjectIdOffset): Int = id.stringify.compare(that.id.stringify)
 }
 
 

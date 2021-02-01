@@ -10,13 +10,18 @@ trait CollectionNameMapping {
 
 class DefaultCollectionNameMapping(config: Config) extends CollectionNameMapping {
   private val separator: String = config.getString("akka-persistence-reactivemongo.persistence-id-separator")
-  private val pattern: Regex = buildPattern(separator.head)
+  private val pattern: Regex = buildPattern(separator.headOption)
 
   override def collectionNameOf(persistentId: String): Option[String] = persistentId match {
+    case pattern(name, _) if name.isEmpty => None
     case pattern(name, _) => Some(name)
     case _ => None
   }
 
-  private def buildPattern(separator: Char) = s"(\\w+)[$separator](.+)".r
+  private def buildPattern(maybeSeparator: Option[Char]) = maybeSeparator match {
+    case Some(char) => s"(\\w+)[$char](.+)".r
+    case None => s"()(.+)".r
+  }
+
 }
 

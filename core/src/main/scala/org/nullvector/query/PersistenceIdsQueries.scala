@@ -32,7 +32,7 @@ trait PersistenceIdsQueries
       greaterOffsetOf,
       o => currentPersistenceIds(o)
     ))
-      .flatMapConcat(identity)
+      .mapConcat(identity)
       .map(_.persistenceId)
   }
 
