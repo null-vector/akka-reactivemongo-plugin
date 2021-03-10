@@ -3,12 +3,15 @@ package org.nullvector
 import akka.Done
 import akka.actor.{ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
+import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
 import reactivemongo.api.{AsyncDriver, DB, MongoConnection}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.util.Try
 
 object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with ExtensionIdProvider {
 
@@ -68,4 +71,17 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     collections ! SetDatabaseProvider(databaseProvider, promisedDone)
     promisedDone.future
   }
+
+  private lazy val shouldExplain = Try(ConfigFactory
+    .systemEnvironment()
+    .withFallback(ConfigFactory.systemProperties())
+    .getBoolean("mongodb.explain-queries")
+  ).toOption.getOrElse(false)
+
+  def explain(collection: BSONCollection)(queryBuilder: collection.QueryBuilder) = {
+    if (shouldExplain) {
+      queryBuilder.explain().one[BSONDocument].map(doc => println(BSONDocument.pretty(doc.head)))
+    }
+  }
+
 }

@@ -17,18 +17,21 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
     for {
       collection <- rxDriver.snapshotCollection(persistenceId)
-      maybeDoc <- collection.find(
+      queryBuilder = collection.find(
         BSONDocument(
           Fields.persistenceId -> persistenceId,
-          Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
-          Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
-          Fields.snapshot_ts -> BSONDocument("$gte" -> criteria.minTimestamp),
           Fields.snapshot_ts -> BSONDocument("$lte" -> criteria.maxTimestamp),
-        ), Option.empty[BSONDocument]).one[BSONDocument]
+          Fields.snapshot_ts -> BSONDocument("$gte" -> criteria.minTimestamp),
+          Fields.sequence -> BSONDocument("$lte" -> criteria.maxSequenceNr),
+          Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
+        ), Option.empty[BSONDocument]
+      )
+      _ = rxDriver.explain(collection)(queryBuilder)
+      maybeDoc <- queryBuilder.one[BSONDocument]
       maybeSelected <- maybeDoc.map { doc =>
         val payloadDoc = (doc.getAsOpt[BSONDocument](Fields.payload), doc.getAsOpt[BSONDocument](Fields.snapshot_payload)) match {
-          case (Some(payloaDoc), _) => payloaDoc
-          case (_, Some(payloaDoc)) => payloaDoc
+          case (Some(payloadDoc), _) => payloadDoc
+          case (_, Some(payloadDoc)) => payloadDoc
           case _ => throw new Exception("No payload found")
         }
         (doc.getAsOpt[String](Fields.manifest) match {

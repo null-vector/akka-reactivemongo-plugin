@@ -16,6 +16,8 @@ import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, React
 import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
+import util.Collections
+import util.Collections._
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -30,10 +32,10 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
     .parseString("akka-persistence-reactivemongo.persistence-id-separator = \"\"")
     .withFallback(ConfigFactory.load())
 
-  override lazy val system = typed.ActorSystem[Any](Behaviors.empty, "ReactiveMongoPlugin", config).classicSystem
+  private implicit lazy val typedSystem: typed.ActorSystem[Any] = typed.ActorSystem[Any](Behaviors.empty, "ReactiveMongoPlugin", config)
+  override implicit lazy val system = typedSystem.classicSystem
   implicit lazy val dispatcher: ExecutionContextExecutor = system.dispatcher
   protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
-  private val amountOfCores: Int = 10
 
   val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl(ConfigFactory.load(), system)
 
@@ -48,7 +50,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Events by tag from NoOffset" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      Collections.dropAll(rxDriver)
       Await.result(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
@@ -86,7 +88,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
     "Raw events by tag from NoOffset" in {
       val prefixReadColl = "ReadCollection"
 
-      dropAll()
+      Collections.dropAll(rxDriver)
 
       Await.result(Source(1 to 20).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
@@ -108,7 +110,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
     "current events by persistence id" in {
       val pId = "ReadCollection-currentByPersistenceId"
 
-      dropAll()
+      dropAll(rxDriver)
 
       Await.result({
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).map(jdx =>
@@ -130,7 +132,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Events by tag from a given Offset" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
@@ -155,7 +157,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Infinite Events by tag" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       val counter = new AtomicInteger()
       readJournal.eventsByTag("event_tag_1", NoOffset)
         .addAttributes(RefreshInterval(300.millis))
@@ -179,7 +181,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Infinite Events by tag with Custom RefreshInterval" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       val counter = new AtomicInteger(0)
       readJournal
         .eventsByTag("event_tag_1", NoOffset)
@@ -209,7 +211,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Infinite Events by Id" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       val envelopes = new ConcurrentLinkedQueue[EventEnvelope]()
       val pId = s"$prefixReadColl-123"
       readJournal
@@ -236,7 +238,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "Infinite persistenceId" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       val ids = new AtomicInteger()
       readJournal
         .persistenceIds()
@@ -264,7 +266,7 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
 
     "current persistenceId" in {
       val prefixReadColl = "ReadCollection"
-      dropAll()
+      dropAll(rxDriver)
       Await.ready(Source(1 to 10).mapAsync(amountOfCores) { collId =>
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map { jIdx =>
           val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
@@ -276,12 +278,6 @@ class ReactiveMongoReadJournalSpec() extends TestKitBase with ImplicitSender
     }
   }
 
-  private def dropAll(prefix: Option[String] = None) = {
-    Await.result(Source.future(rxDriver.journals())
-      .mapConcat(colls => prefix.fold(colls)(x => colls.filter(_.name == x)))
-      .mapAsync(amountOfCores)(_.drop(failIfNotFound = false))
-      .runWith(Sink.ignore), 14.seconds)
-  }
 
   override def afterAll(): Unit = {
     shutdown()

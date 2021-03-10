@@ -11,7 +11,7 @@ class AutoRestartFactory(system: ExtendedActorSystem) {
 
   import akka.actor.typed.scaladsl.adapter._
 
-  private val autoRestartRef: ActorRef = system.systemActorOf(Props(new AutoRestartSupervisor), "Culo")
+  private val autoRestartRef: ActorRef = system.systemActorOf(Props(new AutoRestartSupervisor), "AutoRestartFactory")
 
   def create(props: Props, name: String): ActorRef = {
     Await.result((autoRestartRef ? (props, name)) (Timeout(1.second)).mapTo[ActorRef], 1.second)

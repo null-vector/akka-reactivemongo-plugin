@@ -12,7 +12,7 @@ import scala.util.Try
 class ReactiveMongoJournal(val aConfig: Config) extends AsyncWriteJournal {
 
   private val asyncWriteJournalOps: AsyncWriteJournalOps = UnderlyingPersistenceFactory(
-    new ReactiveMongoJournalImpl(aConfig, context.system),new InMemoryAsyncWriteJournal(context.system)
+    new ReactiveMongoJournalImpl(aConfig, context.system), new InMemoryAsyncWriteJournal(context.system)
   )(context.system)
 
   override def asyncWriteMessages(messages: Seq[AtomicWrite]): Future[Seq[Try[Unit]]] =
