@@ -80,7 +80,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   def explain(collection: BSONCollection)(queryBuilder: collection.QueryBuilder) = {
     if (shouldExplain) {
-      queryBuilder.explain().one[BSONDocument].map(doc => println(BSONDocument.pretty(doc.head)))
+      queryBuilder.explain().cursor().collect[List]().map(doc => println(BSONDocument.pretty(doc.head)))
     }
   }
 

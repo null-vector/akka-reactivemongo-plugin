@@ -64,7 +64,7 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
     }
 
     "Recover Events" in {
-      val persistId = "Zeta"
+      val persistId = s"Zeta-${Random.nextInt().abs}"
         val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
 
       {
@@ -72,16 +72,15 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
         val eventualDone = Source(1 to amountOfEvents).runForeach(aNumber => {
           actorRef ! Command(s"Event One ($aNumber)")
         })
-        Await.result(eventualDone, 60.seconds)
-        receiveN(amountOfEvents, 15.seconds)
+        Await.result(eventualDone, 7.seconds)
+        receiveN(amountOfEvents, 7.seconds)
         actorRef ! Command("Event Two")
         expectMsg(Done)
-        Thread.sleep(500)
         actorRef ! Kill
       }
 
       actorRef ! Command("get_state")
-      expectMsg(15.seconds, Some("Event Two"))
+      expectMsg(7.seconds, Some("Event Two"))
     }
 
     "Delete events" in {
