@@ -5,6 +5,7 @@ import akka.actor.{ActorRef, ExtendedActorSystem, Extension, ExtensionId, Extens
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
+import play.api.libs.json.{JsString, Json}
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
 import reactivemongo.api.{AsyncDriver, DB, MongoConnection}
@@ -40,6 +41,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         30.seconds
       )
     }
+
     override def database: DB = db
   }
 
@@ -80,7 +82,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   def explain(collection: BSONCollection)(queryBuilder: collection.QueryBuilder) = {
     if (shouldExplain) {
-      queryBuilder.explain().cursor().collect[List]().map(doc => println(BSONDocument.pretty(doc.head)))
+      queryBuilder.explain().cursor().collect[List]()
+        .map(doc => {
+          val prettyBson = BSONDocument.pretty(doc.head)
+          println(JsString(prettyBson))
+        })
     }
   }
 

@@ -68,12 +68,12 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
         val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
 
       {
-        val amountOfEvents = 477
+        val amountOfEvents = 1657
         val eventualDone = Source(1 to amountOfEvents).runForeach(aNumber => {
           actorRef ! Command(s"Event One ($aNumber)")
         })
         Await.result(eventualDone, 7.seconds)
-        receiveN(amountOfEvents, 7.seconds)
+        receiveN(amountOfEvents, 21.seconds)
         actorRef ! Command("Event Two")
         expectMsg(Done)
         actorRef ! Kill
