@@ -3,6 +3,7 @@ package org.nullvector.journal
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import org.nullvector.Fields
+import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.api.bson._
 
 import scala.concurrent.Future
@@ -25,7 +26,7 @@ trait ReactiveMongoHighestSequence {
         Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
       ))
       .hint(collection.hint(BSONDocument(Fields.persistenceId -> 1, Fields.to_sn -> -1)))
-      rxDriver.explain(collection)(queryBuilder)
+      rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]
         .map(_.map(_.getAsOpt[Long](Fields.to_sn).get).getOrElse(0L))
@@ -37,7 +38,7 @@ trait ReactiveMongoHighestSequence {
       val queryBuilder = collection.find(
         BSONDocument(Fields.persistenceId -> persistenceId),
         Some(BSONDocument(Fields.sequence -> 1)))
-      rxDriver.explain(collection)(queryBuilder)
+      rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]
         .map(_.map(_.getAsOpt[Long](Fields.sequence).get).getOrElse(0L))

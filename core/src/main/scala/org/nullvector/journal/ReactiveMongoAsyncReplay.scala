@@ -3,6 +3,7 @@ package org.nullvector.journal
 import akka.persistence.PersistentRepr
 import akka.stream.Materializer
 import org.nullvector.Fields
+import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.bson._
 import reactivemongo.api.bson.collection.BSONCollection
@@ -23,22 +24,22 @@ trait ReactiveMongoAsyncReplay {
         Fields.from_sn -> BSONDocument("$lte" -> toSequenceNr),
       )
       val queryBuilder = collection.find(query)
-      rxDriver.explain(collection)(queryBuilder)
+      rxDriver.explain(collection)(QueryType.Recovery, queryBuilder)
       queryBuilder
         .cursor[BSONDocument]()
-        .documentSource(if(max >= Int.MaxValue) Int.MaxValue else max.intValue())
+        .documentSource(if (max >= Int.MaxValue) Int.MaxValue else max.intValue())
         .mapConcat(_.getAsOpt[Seq[BSONDocument]](Fields.events).get)
         .mapAsync(Runtime.getRuntime.availableProcessors()) { doc =>
           val manifest = doc.getAsOpt[String](Fields.manifest).get
           val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
           serializer.deserialize(manifest, rawPayload).map(payload =>
-              PersistentRepr(
-                payload,
-                doc.getAsOpt[Long](Fields.sequence).get,
-                doc.getAsOpt[String](Fields.persistenceId).get,
-                manifest
-              )
+            PersistentRepr(
+              payload,
+              doc.getAsOpt[Long](Fields.sequence).get,
+              doc.getAsOpt[String](Fields.persistenceId).get,
+              manifest
             )
+          )
         }
         .runForeach(recoveryCallback)
     }.map { _ => }

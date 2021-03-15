@@ -134,7 +134,10 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
   }
 
   private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-    ensureIndex(index(Seq(Fields.tags -> IndexType.Ascending), Some("tags"), sparse = true), indexesManager)
+    ensureIndex(index(Seq(
+        "_id" -> IndexType.Ascending,
+        Fields.tags -> IndexType.Ascending,
+      ), Some("_tags"), unique = true, sparse = true), indexesManager)
   }
 
   private def ensureIndex(index: Aux[BSONSerializationPack.type], indexesManager: CollectionIndexesManager): Future[Unit] = {

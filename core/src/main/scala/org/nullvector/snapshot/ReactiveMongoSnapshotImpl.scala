@@ -3,6 +3,7 @@ package org.nullvector.snapshot
 import akka.actor.ActorSystem
 import akka.persistence.{PersistentRepr, SelectedSnapshot, SnapshotMetadata, SnapshotSelectionCriteria}
 import com.typesafe.config.Config
+import org.nullvector.ReactiveMongoDriver.QueryType
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.api.bson._
 import org.nullvector._
@@ -26,7 +27,7 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           Fields.sequence -> BSONDocument("$gte" -> criteria.minSequenceNr),
         ), Option.empty[BSONDocument]
       )
-      _ = rxDriver.explain(collection)(queryBuilder)
+      _ = rxDriver.explain(collection)(QueryType.LoadSnapshot, queryBuilder)
       maybeDoc <- queryBuilder.one[BSONDocument]
       maybeSelected <- maybeDoc.map { doc =>
         val payloadDoc = (doc.getAsOpt[BSONDocument](Fields.payload), doc.getAsOpt[BSONDocument](Fields.snapshot_payload)) match {

@@ -4,7 +4,8 @@ import akka.Done
 import akka.actor.{ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import org.nullvector.ReactiveMongoDriver.DatabaseProvider
+import org.nullvector.ReactiveMongoDriver.QueryType.QueryType
+import org.nullvector.ReactiveMongoDriver.{DatabaseProvider, QueryType}
 import play.api.libs.json.{JsString, Json}
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
@@ -23,6 +24,11 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
   override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoDriver
 
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoDriver = new ReactiveMongoDriver(system)
+
+  object QueryType extends Enumeration {
+    type QueryType = Value
+    val All, Recovery, HighestSeq, LoadSnapshot, EventsByTag = Value
+  }
 
 }
 
@@ -74,20 +80,45 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promisedDone.future
   }
 
-  private lazy val shouldExplain = Try(ConfigFactory
-    .systemEnvironment()
-    .withFallback(ConfigFactory.systemProperties())
-    .getBoolean("mongodb.explain-queries")
-  ).toOption.getOrElse(false)
+  private lazy val explainOptions = {
+    val config = ConfigFactory
+      .systemEnvironment()
+      .withFallback(ConfigFactory.systemProperties())
 
-  def explain(collection: BSONCollection)(queryBuilder: collection.QueryBuilder) = {
-    if (shouldExplain) {
+    def extractValue(conditionName: String) = {
+      Try(config.getBoolean(conditionName)).toOption.filter(identity)
+    }
+
+    (extractValue("mongodb.explain-all").map(_ => QueryType.All) ::
+        extractValue("mongodb.explain-recovery").map(_ => QueryType.Recovery) ::
+        extractValue("mongodb.explain-highest-seq").map(_ => QueryType.HighestSeq) ::
+        extractValue("mongodb.explain-load-snapshot").map(_ => QueryType.LoadSnapshot) ::
+        extractValue("mongodb.explain-events-by-tag").map(_ => QueryType.EventsByTag) ::
+          Nil).flatten
+  }
+
+  def explain(collection: BSONCollection)(queryType: QueryType.QueryType, queryBuilder: collection.QueryBuilder) = {
+    if (shoudExplain(queryType)) {
       queryBuilder.explain().cursor().collect[List]()
-        .map(doc => {
-          val prettyBson = BSONDocument.pretty(doc.head)
-          println(JsString(prettyBson))
-        })
+        .map(docs => Try(Json.parse(BsonTextNormalizer(docs.head))).foreach(println))
     }
   }
 
+  def explainAgg(collection: BSONCollection)
+                (queryType: QueryType.QueryType, stages: (collection.AggregationFramework) => List[collection.PipelineOperator]) = {
+    if (shoudExplain(queryType)) {
+      collection
+        .aggregatorContext[BSONDocument](stages(collection.AggregationFramework),explain = true,
+          hint = Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1))))
+        .prepared
+        .cursor
+        .collect[List]()
+        .map(docs => Try(Json.parse(BsonTextNormalizer(docs.head))).foreach(println))
+    }
+  }
+
+
+  private def shoudExplain(queryType: QueryType) = {
+    explainOptions.exists(shouldType => shouldType == QueryType.All || shouldType == queryType)
+  }
 }
