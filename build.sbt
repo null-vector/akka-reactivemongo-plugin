@@ -4,6 +4,10 @@ lazy val supportedScalaVersions = List(scala213)
 lazy val akkaVersion = "2.6.10"
 lazy val rxmongoVersion = "1.0.1"
 
+publishArtifact := false
+publish := {}
+publishLocal := {}
+
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
@@ -58,6 +62,12 @@ lazy val core = (project in file("core"))
     api)
   .settings(
     commonSettings,
+    publishTo := Some("nullvector" at (if (isSnapshot.value)
+      "https://nullvector.jfrog.io/artifactory/snapshots"
+    else
+      "https://nullvector.jfrog.io/artifactory/releases")
+    ),
+    credentials += Credentials(Path.userHome / ".jfrog" / "credentials"),
     Compile / packageDoc / publishArtifact := false,
     Compile / packageBin / mappings ++= (macros / Compile / packageBin / mappings).value,
     Compile / packageSrc / mappings ++= (macros / Compile / packageSrc / mappings).value,
