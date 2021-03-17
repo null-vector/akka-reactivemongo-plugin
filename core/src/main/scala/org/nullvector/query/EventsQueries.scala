@@ -6,6 +6,7 @@ import akka.stream.scaladsl.{Flow, Source}
 import org.nullvector.Fields
 import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.akkastream.cursorProducer
+import reactivemongo.api.{Cursor, CursorProducer}
 import reactivemongo.api.bson._
 import reactivemongo.api.bson.collection.BSONCollection
 
@@ -115,15 +116,20 @@ trait EventsQueries
 
     import collection.AggregationFramework._
 
-    val stages: collection.AggregationFramework => List[PipelineOperator] = (framework: collection.AggregationFramework) => List(
-      framework.Match(query(Fields.tags) ++ filterByOffset(offset)),
-      framework.UnwindField(Fields.events),
-      framework.Match(query(s"${Fields.events}.${Fields.tags}")),
+    val stages: List[PipelineOperator] = List(
+      Match(query(Fields.tags) ++ filterByOffset(offset)),
+      UnwindField(Fields.events),
+      Match(query(s"${Fields.events}.${Fields.tags}")),
     )
-    rxDriver.explainAgg(collection)(QueryType.EventsByTag, stages)
-    collection
-      .aggregateWith[BSONDocument]()(stages)
-      .documentSource()
+    val hint = Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1)))
+    rxDriver.explainAgg(collection)(QueryType.EventsByTag, stages, hint)
+
+    def aggregate(implicit producer: CursorProducer[BSONDocument]): producer.ProducedCursor = {
+      val aggregateCursor = collection.aggregatorContext[BSONDocument](stages, hint = hint).prepared.cursor
+      producer.produce(aggregateCursor)
+    }
+
+    aggregate.documentSource()
   }
 
   private def buildFindEventsByIdQuery(coll: collection.BSONCollection, persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) = {

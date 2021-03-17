@@ -80,6 +80,12 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promisedDone.future
   }
 
+  def shouldReindex(): Future[Done] = {
+    val promisedDone = Promise[Done]()
+    collections ! ShouldReindex(promisedDone)
+    promisedDone.future
+  }
+
   private lazy val explainOptions = {
     val config = ConfigFactory
       .systemEnvironment()
@@ -105,11 +111,10 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   }
 
   def explainAgg(collection: BSONCollection)
-                (queryType: QueryType.QueryType, stages: (collection.AggregationFramework) => List[collection.PipelineOperator]) = {
+                (queryType: QueryType.QueryType, stages: List[collection.PipelineOperator], hint: Option[collection.Hint]) = {
     if (shoudExplain(queryType)) {
       collection
-        .aggregatorContext[BSONDocument](stages(collection.AggregationFramework),explain = true,
-          hint = Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1))))
+        .aggregatorContext[BSONDocument](stages,explain = true, hint = hint)
         .prepared
         .cursor
         .collect[List]()

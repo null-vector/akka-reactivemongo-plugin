@@ -16,7 +16,9 @@ object Collections {
     Await.result(Source.future(driver.journals())
       .mapConcat(colls => prefix.fold(colls)(x => colls.filter(_.name == x)))
       .mapAsync(amountOfCores)(_.drop(failIfNotFound = false))
-      .runWith(Sink.ignore), 14.seconds)
+      .runWith(Sink.ignore)
+      .flatMap(_ => driver.shouldReindex()
+      ), 14.seconds)
   }
 
 }

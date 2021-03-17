@@ -46,6 +46,10 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
 
     case AddVerified(collectionName) => verifiedNames += collectionName
 
+    case ShouldReindex(promisedDone) =>
+      verifiedNames.clear()
+      promisedDone success Done
+
     case GetJournals(response) =>
       response completeWith (for {
         names <- database.collectionNames
@@ -135,9 +139,9 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
 
   private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
     ensureIndex(index(Seq(
-        "_id" -> IndexType.Ascending,
-        Fields.tags -> IndexType.Ascending,
-      ), Some("_tags"), unique = true, sparse = true), indexesManager)
+      "_id" -> IndexType.Ascending,
+      Fields.tags -> IndexType.Ascending,
+    ), Some("_tags"), unique = true, sparse = true), indexesManager)
   }
 
   private def ensureIndex(index: Aux[BSONSerializationPack.type], indexesManager: CollectionIndexesManager): Future[Unit] = {
@@ -182,6 +186,8 @@ object Collections {
   case class GetJournals(response: Promise[List[BSONCollection]])
 
   case class SetDatabaseProvider(databaseProvider: DatabaseProvider, ack: Promise[Done])
+
+  case class ShouldReindex(ack: Promise[Done])
 
   private case class AddVerified(collectionName: String)
 

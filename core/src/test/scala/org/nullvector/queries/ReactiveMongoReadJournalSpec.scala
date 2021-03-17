@@ -20,9 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Random
+import scala.util.matching.Regex
 
 class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with ImplicitSender
-   with Matchers with BeforeAndAfterAll with BeforeAndAfterEach {
+  with Matchers with BeforeAndAfterAll with BeforeAndAfterEach {
 
   lazy val config: Config = ConfigFactory
     .parseString("akka-persistence-reactivemongo.persistence-id-separator = \"\"")
@@ -38,59 +39,69 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new SomeEventAdapter())
 
+  override def beforeEach() = {
+    dropAll(rxDriver)
+    Await.result(rxDriver.journalCollection("j-0"), 1.second)
+  }
+
+
   it should "Events by tag from NoOffset" in {
     val prefixReadColl = "ReadCollection_A"
+
+    val tagNames = (1 to 3 map (_ => s"T${Random.nextInt().abs}")).toList
+
     Await.result(Source(1 to 10).mapAsync(amountOfCores) { idx =>
       val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
       reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
         AtomicWrite(group.map(jdx =>
-          PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+          PersistentRepr(payload = SomeEvent(s"TAG:${tagNames(idx % 3)}", 23.45), persistenceId = pId, sequenceNr = jdx)
         ))
       ).toList)
     }.runWith(Sink.ignore), 14.seconds)
 
     {
-      val eventualDone = readJournal.currentEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+      val eventualDone = readJournal.currentEventsByTag(tagNames(1), NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
       val envelopes = Await.result(eventualDone, 3.seconds)
       println(System.currentTimeMillis())
-      envelopes.size shouldBe 160
+      envelopes.size shouldBe 200
     }
 
     {
-      val eventualDone = readJournal.currentEventsByTag("event_tag_other", NoOffset).runWith(Sink.seq)
+      val eventualDone = readJournal.currentEventsByTag(tagNames.head, NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
       val envelopes = Await.result(eventualDone, 3.seconds)
       println(System.currentTimeMillis())
-      envelopes.size shouldBe 170
+      envelopes.size shouldBe 150
     }
 
     {
-      val eventualDone = readJournal.currentEventsByTags(Seq("event_tag_other", "event_tag_1"), NoOffset).runWith(Sink.seq)
+      val eventualDone = readJournal.currentEventsByTags(Seq(tagNames(1), tagNames(2)), NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
       val envelopes = Await.result(eventualDone, 3.seconds)
       println(System.currentTimeMillis())
-      envelopes.size shouldBe 330
+      envelopes.size shouldBe 350
     }
   }
 
   it should "Raw events by tag from NoOffset" in {
     val prefixReadColl = "ReadCollection_B"
+    val tagNames = (1 to 3 map (_ => s"T${Random.nextInt().abs}")).toList
 
     Await.result(Source(1 to 20).mapAsync(amountOfCores) { idx =>
       val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
       reactiveMongoJournalImpl.asyncWriteMessages((1 to 50).grouped(3).map(group =>
         AtomicWrite(group.map(jdx =>
-          PersistentRepr(payload = SomeEvent(name(jdx), 23.45), persistenceId = pId, sequenceNr = jdx)
+          PersistentRepr(payload = SomeEvent(s"TAG:${tagNames(idx % 3)}", 23.45), persistenceId = pId, sequenceNr = jdx)
         ))
       ).toList)
     }.runWith(Sink.ignore), 14.second)
 
-    val eventualDone = readJournal.currentRawEventsByTag("event_tag_1", NoOffset).runWith(Sink.seq)
+    val eventualDone = readJournal.currentRawEventsByTag(tagNames(1), NoOffset).runWith(Sink.seq)
     println(System.currentTimeMillis())
     val envelopes = Await.result(eventualDone, 3.seconds)
     println(System.currentTimeMillis())
-    envelopes.size shouldBe 320
+    envelopes.size shouldBe 350
     envelopes.map(_.event).toList shouldBe an[List[BSONDocument]]
   }
 
@@ -246,7 +257,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
     }.runWith(Sink.ignore), 14.seconds)
-    Thread.sleep(500)
+    Thread.sleep(700)
     envelopes.peek().persistenceId shouldBe pId
     envelopes.size shouldBe 20
   }
@@ -313,11 +324,6 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
     shutdown()
   }
 
-  def name(idx: Int): String = idx % 3 match {
-    case 0 => s"lechuga_$idx"
-    case 1 => s"tomate_$idx"
-    case 2 => s"cebolla_$idx"
-  }
 
   case class SomeEvent(name: String, price: Double)
 
@@ -327,9 +333,12 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
 
     override val manifest: String = "some_event"
 
+    private val tagName: Regex = """TAG:(\w+)""".r
+
     override def tags(payload: SomeEvent): Set[String] = payload match {
       case SomeEvent(name, _) if name.startsWith("lechuga") => Set("event_tag_1", "event_tag_2")
       case SomeEvent(name, _) if name.startsWith("tomate") => Set("event_tag_other")
+      case SomeEvent(tagName(name), _) => Set(name)
       case _ => Set.empty
     }
 
