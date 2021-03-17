@@ -23,7 +23,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
   val asyncWriteJournalOps: AsyncWriteJournalOps = new ReactiveMongoJournalImpl(conf, system)
 
-  private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(conf,system)
+  private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(conf, system)
 
   private val serializer = ReactiveMongoEventSerializer(system)
   serializer.addEventAdapter(new ListAdapter())
@@ -51,8 +51,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
       )
 
       val eventualTriedUnits = asyncWriteJournalOps.asyncWriteMessages(events)
-      Await.result(eventualTriedUnits, 1.second)
-
+      Await.result(eventualTriedUnits, 7.second)
       val eventualLong = asyncWriteJournalOps.asyncReadHighestSequenceNr(pId, 22)
 
       Await.result(eventualLong, 7.second) should be(25)
@@ -77,9 +76,7 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
     }
 
     "read max seqNr between Journal and Snapshot" in {
-      val persistenceId = "MaxSeqNr-0"
-      Await.result(ReactiveMongoDriver(system).journalCollection(persistenceId).map(_.drop(failIfNotFound = false)), 2.seconds)
-      Await.result(ReactiveMongoDriver(system).snapshotCollection(persistenceId).map(_.drop(failIfNotFound = false)), 2.seconds)
+      val persistenceId = s"MaxSeqNr-${Random.nextInt().abs}"
 
       val events = immutable.Seq(
         AtomicWrite(PersistentRepr(payload = "AnEvent", persistenceId = persistenceId, sequenceNr = 26)),

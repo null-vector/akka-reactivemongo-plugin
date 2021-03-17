@@ -84,7 +84,8 @@ private object EventAdapterMacroFactory {
   }
 
   private def implicitMappingsFor(context: blackbox.Context)
-                                 (eventType: context.universe.Type, noImplicitForMainType: Boolean = false
+                                 (
+                                   eventType: context.universe.Type, noImplicitForMainType: Boolean = false
                                  ): (Set[context.Tree], List[context.Tree]) = {
     import context.universe._
 

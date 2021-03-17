@@ -3,6 +3,7 @@ package org.nullvector.journal
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Source
 import org.nullvector.Fields
+import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.api.bson._
 
 import scala.concurrent.Future
@@ -20,10 +21,13 @@ trait ReactiveMongoHighestSequence {
 
   private def journalMaxSnFrom(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
-      collection.find(BSONDocument(
+      val queryBuilder = collection.find(BSONDocument(
         Fields.persistenceId -> persistenceId,
         Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
-      ), Some(BSONDocument(Fields.to_sn -> 1)))
+      ))
+      .hint(collection.hint(BSONDocument(Fields.persistenceId -> 1, Fields.to_sn -> -1)))
+      rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
+      queryBuilder
         .one[BSONDocument]
         .map(_.map(_.getAsOpt[Long](Fields.to_sn).get).getOrElse(0L))
     }
@@ -31,9 +35,11 @@ trait ReactiveMongoHighestSequence {
 
   private def snapshotMaxSnFrom(persistenceId: String): Future[Long] = {
     rxDriver.snapshotCollection(persistenceId).flatMap { collection =>
-      collection.find(BSONDocument(
-        Fields.persistenceId -> persistenceId,
-      ), Some(BSONDocument(Fields.sequence -> 1)))
+      val queryBuilder = collection.find(
+        BSONDocument(Fields.persistenceId -> persistenceId),
+        Some(BSONDocument(Fields.sequence -> 1)))
+      rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
+      queryBuilder
         .one[BSONDocument]
         .map(_.map(_.getAsOpt[Long](Fields.sequence).get).getOrElse(0L))
     }

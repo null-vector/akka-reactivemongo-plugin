@@ -1,8 +1,12 @@
-lazy val scala213 = "2.13.4"
+lazy val scala213 = "2.13.5"
 lazy val scala300 = "3.0.0-M2"
 lazy val supportedScalaVersions = List(scala213)
-lazy val akkaVersion = "2.6.10"
-lazy val rxmongoVersion = "1.0.1"
+lazy val akkaVersion = "2.6.13"
+lazy val rxmongoVersion = "1.0.3"
+
+publishArtifact := false
+publish := {}
+publishLocal := {}
 
 publishArtifact := false
 publish := {}
@@ -11,7 +15,7 @@ publishLocal := {}
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
-  version := s"1.4.4",
+  version := s"1.4.5",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersions,
   scalacOptions := Seq(
@@ -38,6 +42,12 @@ lazy val commonSettings = Seq(
 
   libraryDependencies += "org.reactivemongo" %% "reactivemongo" % rxmongoVersion,
   libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion,
+  // For Mac OS X (x86-64), kqueue native support
+  libraryDependencies += "org.reactivemongo" % "reactivemongo-shaded-native" % "1.0.3-osx-x86-64" % "runtime",
+  // For Linux (x86-64), kqueue native support
+  libraryDependencies += "org.reactivemongo" % "reactivemongo-shaded-native" % "1.0.3-linux-x86-64" % "runtime",
+
+  libraryDependencies += "com.typesafe.play" %% "play-json" % "2.9.2",
 
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
 

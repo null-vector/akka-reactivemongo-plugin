@@ -38,44 +38,17 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
 
     case GetJournalCollectionNameFor(persistentId, promise) =>
       val name = s"$journalPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
-      promise complete Try(database.collection[BSONCollection](name))
-      self ! VerifyJournalIndices(name)
+      promise completeWith verifiedJournalCollection(name)
 
     case GetSnapshotCollectionNameFor(persistentId, promise) =>
       val name = s"$snapshotPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
-      promise complete Try(database.collection[BSONCollection](name))
-      self ! VerifySnapshotIndices(name)
-
-    case VerifyJournalIndices(collectionName) =>
-      if (!verifiedNames.contains(collectionName)) {
-        val collection = database.collection[BSONCollection](collectionName)
-        (for {
-          _ <- createCollection(collection)
-          _ <- ensurePidSeqIndex(collection.indexesManager)
-          _ <- ensureTagIndex(collection.indexesManager)
-          _ <- Future.successful(self ! AddVerified(collectionName))
-        } yield ())
-          .onComplete {
-            case Failure(exception) => log.error(exception, exception.getMessage)
-            case Success(_) =>
-          }
-      }
-
-    case VerifySnapshotIndices(collectionName) =>
-      if (!verifiedNames.contains(collectionName)) {
-        val collection = database.collection[BSONCollection](collectionName)
-        (for {
-          _ <- createCollection(collection)
-          _ <- ensureSnapshotIndex(collection.indexesManager)
-          _ <- Future.successful(self ! AddVerified(collectionName))
-        } yield ())
-          .onComplete {
-            case Failure(exception) => log.error(exception, exception.getMessage)
-            case Success(_) =>
-          }
-      }
+      promise completeWith verifiedSnapshotCollection(name)
 
     case AddVerified(collectionName) => verifiedNames += collectionName
+
+    case ShouldReindex(promisedDone) =>
+      verifiedNames.clear()
+      promisedDone success Done
 
     case GetJournals(response) =>
       response completeWith (for {
@@ -84,32 +57,91 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
       } yield collections)
   }
 
+  private def verifiedJournalCollection(name: String): Future[BSONCollection] = {
+    val collection = database.collection[BSONCollection](name)
+    if (!verifiedNames.contains(name)) {
+      val eventualDone = for {
+        _ <- createCollection(collection)
+        _ <- ensureReplayEventsIndex(collection.indexesManager)
+        _ <- ensureHighSeqNumberIndex(collection.indexesManager)
+        _ <- ensureTagIndex(collection.indexesManager)
+        _ <- Future.successful(self ! AddVerified(name))
+      } yield ()
+      eventualDone
+        .onComplete {
+          case Failure(exception) => log.error(exception, exception.getMessage)
+          case Success(_) =>
+        }
+      eventualDone.map(_ => collection)
+    } else Future.successful(collection)
+  }
+
+  private def verifiedSnapshotCollection(name: String): Future[BSONCollection] = {
+    val collection = database.collection[BSONCollection](name)
+    if (!verifiedNames.contains(name)) {
+      val eventualDone = for {
+        _ <- createCollection(collection)
+        _ <- ensureLastSnapshotIndex(collection.indexesManager)
+        _ <- ensureHighSeqNumberSnapshotIndex(collection.indexesManager)
+        _ <- Future.successful(self ! AddVerified(name))
+      } yield ()
+      eventualDone
+        .onComplete {
+          case Failure(exception) => log.error(exception, exception.getMessage)
+          case Success(_) =>
+        }
+      eventualDone.map(_ => collection)
+    } else Future.successful(collection)
+  }
+
+
   private def createCollection(collection: BSONCollection) = {
     collection.create().recover { case CommandException.Code(48) => () }
   }
 
-  private def ensurePidSeqIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-    val name = Some("pid_seq")
+  private def ensureReplayEventsIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+    val name = Some("replay_events")
+    val key = Seq(
+      Fields.persistenceId -> IndexType.Ascending,
+      Fields.to_sn -> IndexType.Ascending,
+      Fields.from_sn -> IndexType.Ascending,
+    )
+    ensureIndex(index(key, name), indexesManager)
+  }
+
+  private def ensureHighSeqNumberIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+    val name = Some("high_seq_number")
     val key = Seq(
       Fields.persistenceId -> IndexType.Ascending,
       Fields.to_sn -> IndexType.Descending
     )
-
     ensureIndex(index(key, name), indexesManager)
   }
 
-  private def ensureSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+  private def ensureLastSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
     val key = Seq(
       Fields.persistenceId -> IndexType.Ascending,
-      Fields.sequence -> IndexType.Descending,
       Fields.snapshot_ts -> IndexType.Descending,
+      Fields.sequence -> IndexType.Descending,
     )
-    val name = Some("snapshot")
+    val name = Some("last_snapshot")
     ensureIndex(index(key, name, unique = true), indexesManager)
   }
 
+  private def ensureHighSeqNumberSnapshotIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
+    val key = Seq(
+      Fields.persistenceId -> IndexType.Ascending,
+      Fields.sequence -> IndexType.Descending,
+    )
+    val name = Some("high_seq_number")
+    ensureIndex(index(key, name), indexesManager)
+  }
+
   private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-    ensureIndex(index(Seq(Fields.tags -> IndexType.Ascending), Some("tags"), sparse = true), indexesManager)
+    ensureIndex(index(Seq(
+      "_id" -> IndexType.Ascending,
+      Fields.tags -> IndexType.Ascending,
+    ), Some("_tags"), unique = true, sparse = true), indexesManager)
   }
 
   private def ensureIndex(index: Aux[BSONSerializationPack.type], indexesManager: CollectionIndexesManager): Future[Unit] = {
@@ -155,9 +187,7 @@ object Collections {
 
   case class SetDatabaseProvider(databaseProvider: DatabaseProvider, ack: Promise[Done])
 
-  private case class VerifyJournalIndices(collectionName: String)
-
-  private case class VerifySnapshotIndices(collectionName: String)
+  case class ShouldReindex(ack: Promise[Done])
 
   private case class AddVerified(collectionName: String)
 
