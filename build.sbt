@@ -42,10 +42,6 @@ lazy val commonSettings = Seq(
 
   libraryDependencies += "org.reactivemongo" %% "reactivemongo" % rxmongoVersion,
   libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion,
-  // For Mac OS X (x86-64), kqueue native support
-  libraryDependencies += "org.reactivemongo" % "reactivemongo-shaded-native" % "1.0.3-osx-x86-64" % "runtime",
-  // For Linux (x86-64), kqueue native support
-  libraryDependencies += "org.reactivemongo" % "reactivemongo-shaded-native" % "1.0.3-linux-x86-64" % "runtime",
 
   libraryDependencies += "com.typesafe.play" %% "play-json" % "2.9.2",
 
