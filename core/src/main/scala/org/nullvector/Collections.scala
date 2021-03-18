@@ -29,11 +29,11 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
     config.getString("akka-persistence-reactivemongo.collection-name-mapping")
   ).get.getDeclaredConstructor(classOf[Config]).newInstance(config)
 
-  def database = currentDatabaseProvider.database
+  private def database = currentDatabaseProvider.database
 
   override def receive: Receive = {
-    case SetDatabaseProvider(databaseProvider, ack) =>
-      currentDatabaseProvider = databaseProvider
+    case SetDatabaseProvider(aDatabaseProvider, ack) =>
+      currentDatabaseProvider = aDatabaseProvider
       ack.success(Done)
 
     case GetJournalCollectionNameFor(persistentId, promise) =>
@@ -51,10 +51,15 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
       promisedDone success Done
 
     case GetJournals(response) =>
-      response completeWith (for {
-        names <- database.collectionNames
-        collections = names.filter(_.startsWith(journalPrefix)).map(database.collection[BSONCollection](_))
-      } yield collections)
+      val collections = database.collectionNames.map(_.filter(_.startsWith(journalPrefix))).flatMap { names =>
+        Future.traverse(names) { name =>
+          val promisedCollection = Promise[BSONCollection]
+          promisedCollection completeWith verifiedJournalCollection(name)
+          promisedCollection.future
+        }
+      }
+      response completeWith collections
+
   }
 
   private def verifiedJournalCollection(name: String): Future[BSONCollection] = {

@@ -8,14 +8,11 @@ publishArtifact := false
 publish := {}
 publishLocal := {}
 
-publishArtifact := false
-publish := {}
-publishLocal := {}
 
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
-  version := s"1.4.5",
+  version := s"1.4.6",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersions,
   scalacOptions := Seq(

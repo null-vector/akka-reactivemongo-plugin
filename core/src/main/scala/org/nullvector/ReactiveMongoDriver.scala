@@ -6,6 +6,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.QueryType.QueryType
 import org.nullvector.ReactiveMongoDriver.{DatabaseProvider, QueryType}
+import org.slf4j.{Logger, LoggerFactory}
 import play.api.libs.json.{JsString, Json}
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
@@ -33,16 +34,30 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 }
 
 class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
+  protected val logger: Logger = LoggerFactory.getLogger(getClass)
+
   private val dispatcherName = "akka-persistence-reactivemongo-dispatcher"
   protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(dispatcherName)
   private implicit val timeout: Timeout = Timeout(5.seconds)
   private val defaultProvider: DatabaseProvider = new DatabaseProvider {
     private lazy val db: DB = {
       val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
+      logger.info("Connecting to {}", mongoUri)
       Await.result(
         MongoConnection.fromString(mongoUri).flatMap { parsedUri =>
-          val databaseName = parsedUri.db.getOrElse(throw new Exception("Missing database name"))
-          AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName))
+          parsedUri.db match {
+            case Some(databaseName) =>
+              AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName))
+                .recover {
+                  case throwable: Throwable =>
+                    logger.error(throwable.getMessage, throwable)
+                    throw throwable
+                }
+            case None =>
+              val exception = new IllegalStateException(s"Missing Database Name in $mongoUri")
+              logger.error(exception.getMessage, exception)
+              throw exception
+          }
         },
         30.seconds
       )
@@ -96,11 +111,11 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     }
 
     (extractValue("mongodb.explain-all").map(_ => QueryType.All) ::
-        extractValue("mongodb.explain-recovery").map(_ => QueryType.Recovery) ::
-        extractValue("mongodb.explain-highest-seq").map(_ => QueryType.HighestSeq) ::
-        extractValue("mongodb.explain-load-snapshot").map(_ => QueryType.LoadSnapshot) ::
-        extractValue("mongodb.explain-events-by-tag").map(_ => QueryType.EventsByTag) ::
-          Nil).flatten
+      extractValue("mongodb.explain-recovery").map(_ => QueryType.Recovery) ::
+      extractValue("mongodb.explain-highest-seq").map(_ => QueryType.HighestSeq) ::
+      extractValue("mongodb.explain-load-snapshot").map(_ => QueryType.LoadSnapshot) ::
+      extractValue("mongodb.explain-events-by-tag").map(_ => QueryType.EventsByTag) ::
+      Nil).flatten
   }
 
   def explain(collection: BSONCollection)(queryType: QueryType.QueryType, queryBuilder: collection.QueryBuilder) = {
@@ -114,7 +129,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
                 (queryType: QueryType.QueryType, stages: List[collection.PipelineOperator], hint: Option[collection.Hint]) = {
     if (shoudExplain(queryType)) {
       collection
-        .aggregatorContext[BSONDocument](stages,explain = true, hint = hint)
+        .aggregatorContext[BSONDocument](stages, explain = true, hint = hint)
         .prepared
         .cursor
         .collect[List]()
