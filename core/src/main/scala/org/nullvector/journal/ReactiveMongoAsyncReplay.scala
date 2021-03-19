@@ -23,8 +23,16 @@ trait ReactiveMongoAsyncReplay {
         Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
         Fields.from_sn -> BSONDocument("$lte" -> toSequenceNr),
       )
-      val queryBuilder = collection.find(query)
+      val queryBuilder = collection
+        .find(query)
+        .hint(collection.hint(BSONDocument(
+          Fields.persistenceId -> 1,
+          Fields.to_sn -> 1,
+          Fields.from_sn -> 1,
+        )))
+
       rxDriver.explain(collection)(QueryType.Recovery, queryBuilder)
+
       queryBuilder
         .cursor[BSONDocument]()
         .documentSource(if (max >= Int.MaxValue) Int.MaxValue else max.intValue())

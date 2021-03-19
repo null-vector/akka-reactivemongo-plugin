@@ -119,7 +119,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   }
 
   def explain(collection: BSONCollection)(queryType: QueryType.QueryType, queryBuilder: collection.QueryBuilder) = {
-    if (shoudExplain(queryType)) {
+    if (shouldExplain(queryType)) {
       queryBuilder.explain().cursor().collect[List]()
         .map(docs => Try(Json.parse(BsonTextNormalizer(docs.head))).foreach(println))
     }
@@ -127,7 +127,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   def explainAgg(collection: BSONCollection)
                 (queryType: QueryType.QueryType, stages: List[collection.PipelineOperator], hint: Option[collection.Hint]) = {
-    if (shoudExplain(queryType)) {
+    if (shouldExplain(queryType)) {
       collection
         .aggregatorContext[BSONDocument](stages, explain = true, hint = hint)
         .prepared
@@ -138,7 +138,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   }
 
 
-  private def shoudExplain(queryType: QueryType) = {
+  private def shouldExplain(queryType: QueryType) = {
     explainOptions.exists(shouldType => shouldType == QueryType.All || shouldType == queryType)
   }
 }

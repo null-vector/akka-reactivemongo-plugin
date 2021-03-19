@@ -40,17 +40,19 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
       actorRef ! Command("get_state") //Will recover Nothing
       expectMsg(13.seconds, None)
 
-      actorRef ! Command("Command1")
-      actorRef ! Command("Command2")
-      actorRef ! Command("Command3")
-      actorRef ! Command("Command4")
-      actorRef ! Command("Command5")
-      actorRef ! Command("Command6")
-      actorRef ! Command("Command7")
-      receiveN(7, 15.seconds)
+      actorRef ! Command("A")
+      actorRef ! CommandAll(Seq("B","C","D"))
+      actorRef ! Command("E")
+      actorRef ! CommandAll(Seq("F","G","H"))
+      actorRef ! Command("I")
+      receiveN(4, 15.seconds)
+
+      actorRef ! Kill
+
+      Thread.sleep(1000)
 
       actorRef ! Command("get_state")
-      expectMsg(Some("Command7"))
+      expectMsg(Some("I"))
     }
 
     "PersistAll" in {
@@ -116,6 +118,8 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
 
   case class Command(action: Any)
 
+  case class CommandAll(actions: Seq[Any])
+
   case class MultiCommand(action1: String, action2: String, action3: String)
 
   case class AnEvent(string: String)
@@ -134,11 +138,18 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
         sender() ! state
 
       case Command(action) =>
-
         persist(AnEvent(action.toString)) { event =>
           state = Some(event.string)
           sender() ! Done
           if (lastSequenceNr % 13 == 0) saveSnapshot(AnEvent(action.toString))
+        }
+
+      case CommandAll(actions) =>
+        persistAll(actions.map(a => AnEvent(a.toString))) { event =>
+        }
+        defer(actions){ _ =>
+          sender() ! Done
+          state = Some(actions.last.toString)
         }
 
       case MultiCommand(action1, action2, action3) =>

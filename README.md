@@ -12,7 +12,7 @@ Add in your `build.sbt` the following lines:
 resolvers += "null-vector" at "https://nullvector.jfrog.io/artifactory/releases"
 ```
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.5"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.7"
 ```
 
 ## Configuration
