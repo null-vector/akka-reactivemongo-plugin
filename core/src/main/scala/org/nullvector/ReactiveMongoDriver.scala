@@ -76,9 +76,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promisedDone.future
   }
 
-  def serverStatus(): Future[BSONDocument] = {
-    val promisedDocument = Promise[BSONDocument]()
-    collections ! ServerStatus(promisedDocument)
+  def health(): Future[Done] = {
+    val promisedDocument = Promise[Done]()
+    collections ! CheckHealth(promisedDocument)
     promisedDocument.future
   }
 

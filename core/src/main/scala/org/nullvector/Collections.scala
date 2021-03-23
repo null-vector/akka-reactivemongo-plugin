@@ -65,12 +65,14 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
       })
       response completeWith collections
 
-    case ServerStatus(ack) =>
-      val eventualDocument = database.flatMap(_
-        .runCommand(BSONDocument("serverStatus" -> 1), FailoverStrategy.default)
-        .one(ReadPreference.primaryPreferred)
-      )
-      ack completeWith eventualDocument
+    case CheckHealth(ack) =>
+      val collections = Promise[List[BSONCollection]]
+      context.self ! GetJournals(collections)
+      val eventualDone = collections.future.map(_.headOption).flatMap {
+        case Some(collection) => collection.find(BSONDocument()).one.map(_ => Done)
+        case None => Future.successful(Done)
+      }
+      ack completeWith eventualDone
   }
 
   private def verifiedJournalCollection(name: String): Future[BSONCollection] = {
@@ -213,7 +215,7 @@ object Collections {
 
   case class ShouldReindex(ack: Promise[Done]) extends Command
 
-  case class ServerStatus(ack: Promise[BSONDocument]) extends Command
+  case class CheckHealth(ack: Promise[Done]) extends Command
 
   private case class AddVerified(collectionName: String) extends Command
 

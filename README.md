@@ -12,7 +12,7 @@ Add in your `build.sbt` the following lines:
 resolvers += "null-vector" at "https://nullvector.jfrog.io/artifactory/releases"
 ```
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.8"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.9"
 ```
 
 ## Configuration
@@ -34,7 +34,7 @@ case class ProductId(id: String) extends AnyVal
 case class InvoiceItem(productId: ProductId, price: BigDecimal, tax: BigDecimal)
 case class InvoiceItemAdded(invoiceItem: InvoiceItem)
 
-val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoceItemAdded")
+val eventAdapter = EventAdapterFactory.adapt[InviceItemAdded](withManifest = "InvoiceItemAdded")
 
 ReactiveMongoEventSerializer(actorSystem).addEventAdapter(eventAdapter)
 ```
