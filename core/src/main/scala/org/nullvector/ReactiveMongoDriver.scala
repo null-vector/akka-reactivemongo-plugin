@@ -2,24 +2,25 @@ package org.nullvector
 
 import akka.Done
 import akka.actor.{ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
+import akka.actor.typed.scaladsl.adapter._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.QueryType.QueryType
 import org.nullvector.ReactiveMongoDriver.{DatabaseProvider, QueryType}
 import org.slf4j.{Logger, LoggerFactory}
-import play.api.libs.json.{JsString, Json}
+import play.api.libs.json.Json
+import reactivemongo.api.DB
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
-import reactivemongo.api.{AsyncDriver, DB, MongoConnection}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
 object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with ExtensionIdProvider {
 
   trait DatabaseProvider {
-    def database: DB
+    def database: Try[DB]
   }
 
   override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoDriver
@@ -37,38 +38,12 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   protected val logger: Logger = LoggerFactory.getLogger(getClass)
 
   private val dispatcherName = "akka-persistence-reactivemongo-dispatcher"
-  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(dispatcherName)
+  private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(dispatcherName)
   private implicit val timeout: Timeout = Timeout(5.seconds)
-  private val defaultProvider: DatabaseProvider = new DatabaseProvider {
-    private lazy val db: DB = {
-      val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
-      logger.info("Connecting to {}", mongoUri)
-      Await.result(
-        MongoConnection.fromString(mongoUri).flatMap { parsedUri =>
-          parsedUri.db match {
-            case Some(databaseName) =>
-              AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName))
-                .recover {
-                  case throwable: Throwable =>
-                    logger.error(throwable.getMessage, throwable)
-                    throw throwable
-                }
-            case None =>
-              val exception = new IllegalStateException(s"Missing Database Name in $mongoUri")
-              logger.error(exception.getMessage, exception)
-              throw exception
-          }
-        },
-        30.seconds
-      )
-    }
-
-    override def database: DB = db
-  }
 
   import Collections._
 
-  private val collectionsProps: Props = Props(new Collections(defaultProvider, system)).withDispatcher(dispatcherName)
+  private val collectionsProps: Props = Props(new Collections(system)).withDispatcher(dispatcherName)
   private val collections: ActorRef = system.systemActorOf(collectionsProps, "ReactiveMongoDriverCollections")
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {
@@ -99,6 +74,12 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     val promisedDone = Promise[Done]()
     collections ! ShouldReindex(promisedDone)
     promisedDone.future
+  }
+
+  def serverStatus(): Future[BSONDocument] = {
+    val promisedDocument = Promise[BSONDocument]()
+    collections ! ServerStatus(promisedDocument)
+    promisedDocument.future
   }
 
   private lazy val explainOptions = {

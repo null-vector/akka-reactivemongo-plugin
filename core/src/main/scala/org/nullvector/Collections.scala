@@ -1,6 +1,7 @@
 package org.nullvector
 
 import akka.Done
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.actor.{Actor, ActorLogging, ExtendedActorSystem}
 import com.typesafe.config.Config
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
@@ -9,17 +10,19 @@ import reactivemongo.api.bson.collection.{BSONCollection, BSONSerializationPack}
 import reactivemongo.api.commands.CommandException
 import reactivemongo.api.indexes.Index.Aux
 import reactivemongo.api.indexes.{CollectionIndexesManager, Index, IndexType}
+import reactivemongo.api.{DB, FailoverStrategy, ReadPreference}
 
 import scala.collection.mutable
 import scala.concurrent._
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
-class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSystem) extends Actor with ActorLogging {
+class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
 
   import Collections._
   import system.dispatcher
 
-  private var currentDatabaseProvider = databaseProvider
+  private val settings: ReactiveMongoPluginSettings = ReactiveMongoPluginSettings(system.toTyped)
+  private var currentDatabaseProvider = settings.databaseProvider
   private val config: Config = system.settings.config
   private val journalPrefix = config.getString("akka-persistence-reactivemongo.prefix-collection-journal")
   private val snapshotPrefix = config.getString("akka-persistence-reactivemongo.prefix-collection-snapshot")
@@ -29,7 +32,9 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
     config.getString("akka-persistence-reactivemongo.collection-name-mapping")
   ).get.getDeclaredConstructor(classOf[Config]).newInstance(config)
 
-  private def database = currentDatabaseProvider.database
+  private def database: Future[DB] = {
+    Future.successful(currentDatabaseProvider.database).transform(_.flatMap(identity))
+  }
 
   override def receive: Receive = {
     case SetDatabaseProvider(aDatabaseProvider, ack) =>
@@ -51,52 +56,64 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
       promisedDone success Done
 
     case GetJournals(response) =>
-      val collections = database.collectionNames.map(_.filter(_.startsWith(journalPrefix))).flatMap { names =>
+      val collections = database.flatMap(_.collectionNames.map(_.filter(_.startsWith(journalPrefix))).flatMap { names =>
         Future.traverse(names) { name =>
           val promisedCollection = Promise[BSONCollection]
           promisedCollection completeWith verifiedJournalCollection(name)
           promisedCollection.future
         }
-      }
+      })
       response completeWith collections
 
+    case ServerStatus(ack) =>
+      val eventualDocument = database.flatMap(_
+        .runCommand(BSONDocument("serverStatus" -> 1), FailoverStrategy.default)
+        .one(ReadPreference.primaryPreferred)
+      )
+      ack completeWith eventualDocument
   }
 
   private def verifiedJournalCollection(name: String): Future[BSONCollection] = {
-    val collection = database.collection[BSONCollection](name)
-    if (!verifiedNames.contains(name)) {
-      val eventualDone = for {
-        _ <- createCollection(collection)
-        _ <- ensureReplayEventsIndex(collection.indexesManager)
-        _ <- ensureHighSeqNumberIndex(collection.indexesManager)
-        _ <- ensureTagIndex(collection.indexesManager)
-        _ <- Future.successful(self ! AddVerified(name))
-      } yield ()
-      eventualDone
-        .onComplete {
-          case Failure(exception) => log.error(exception, exception.getMessage)
-          case Success(_) =>
-        }
-      eventualDone.map(_ => collection)
-    } else Future.successful(collection)
+    database.flatMap { db =>
+      val collection = db.collection[BSONCollection](name)
+      if (!verifiedNames.contains(name)) {
+        val eventualDone = for {
+          _ <- createCollection(collection)
+          _ <- ensureReplayEventsIndex(collection.indexesManager)
+          _ <- ensureHighSeqNumberIndex(collection.indexesManager)
+          _ <- ensureTagIndex(collection.indexesManager)
+          _ <- Future.successful(self ! AddVerified(name))
+        } yield ()
+        eventualDone
+          .onComplete {
+            case Failure(exception) => log.error(exception, exception.getMessage)
+            case Success(_) =>
+          }
+        eventualDone.map(_ => collection)
+      } else Future.successful(collection)
+
+    }
+
   }
 
   private def verifiedSnapshotCollection(name: String): Future[BSONCollection] = {
-    val collection = database.collection[BSONCollection](name)
-    if (!verifiedNames.contains(name)) {
-      val eventualDone = for {
-        _ <- createCollection(collection)
-        _ <- ensureLastSnapshotIndex(collection.indexesManager)
-        _ <- ensureHighSeqNumberSnapshotIndex(collection.indexesManager)
-        _ <- Future.successful(self ! AddVerified(name))
-      } yield ()
-      eventualDone
-        .onComplete {
-          case Failure(exception) => log.error(exception, exception.getMessage)
-          case Success(_) =>
-        }
-      eventualDone.map(_ => collection)
-    } else Future.successful(collection)
+    database.flatMap { db =>
+      val collection = db.collection[BSONCollection](name)
+      if (!verifiedNames.contains(name)) {
+        val eventualDone = for {
+          _ <- createCollection(collection)
+          _ <- ensureLastSnapshotIndex(collection.indexesManager)
+          _ <- ensureHighSeqNumberSnapshotIndex(collection.indexesManager)
+          _ <- Future.successful(self ! AddVerified(name))
+        } yield ()
+        eventualDone
+          .onComplete {
+            case Failure(exception) => log.error(exception, exception.getMessage)
+            case Success(_) =>
+          }
+        eventualDone.map(_ => collection)
+      } else Future.successful(collection)
+    }
   }
 
 
@@ -184,16 +201,20 @@ class Collections(databaseProvider: DatabaseProvider, system: ExtendedActorSyste
 
 object Collections {
 
-  case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
+  sealed trait Command
 
-  case class GetSnapshotCollectionNameFor(persistentId: String, response: Promise[BSONCollection])
+  case class GetJournalCollectionNameFor(persistentId: String, response: Promise[BSONCollection]) extends Command
 
-  case class GetJournals(response: Promise[List[BSONCollection]])
+  case class GetSnapshotCollectionNameFor(persistentId: String, response: Promise[BSONCollection]) extends Command
 
-  case class SetDatabaseProvider(databaseProvider: DatabaseProvider, ack: Promise[Done])
+  case class GetJournals(response: Promise[List[BSONCollection]]) extends Command
 
-  case class ShouldReindex(ack: Promise[Done])
+  case class SetDatabaseProvider(databaseProvider: DatabaseProvider, ack: Promise[Done]) extends Command
 
-  private case class AddVerified(collectionName: String)
+  case class ShouldReindex(ack: Promise[Done]) extends Command
+
+  case class ServerStatus(ack: Promise[BSONDocument]) extends Command
+
+  private case class AddVerified(collectionName: String) extends Command
 
 }
