@@ -83,7 +83,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
     private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
 
-    private val workers: ActorRef = system.systemActorOf(RoundRobinPool(30)
+    private val workers: ActorRef = system.systemActorOf(RoundRobinPool(50)
       .props(Props(WorkerSerializer())
         .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "PoolSerializers")
 
