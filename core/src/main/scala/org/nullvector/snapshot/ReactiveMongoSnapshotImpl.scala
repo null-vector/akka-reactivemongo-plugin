@@ -59,9 +59,9 @@ class ReactiveMongoSnapshotImpl(
     } yield maybeSelected
 
     eventualMaybeSnapshot andThen {
-      case Success(Some(snapshot)) => logger.debug(s"[[Roro]] Deserialization completed for persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
+      case Success(Some(snapshot)) => logger.debug(s"[[Roro]] Deserialization completed for snapshot with persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
       case Success(None) => logger.debug(s"[[Roro]] Deserialization completed. No snapshot offer for persistenceId:$persistenceId")
-      case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for persistenceId:$persistenceId")
+      case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for snapshot with persistenceId:$persistenceId")
     }
 
     //    eventualMaybeSnapshot.onComplete {

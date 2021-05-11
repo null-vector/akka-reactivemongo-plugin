@@ -54,8 +54,8 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
               manifest
             )
           ) andThen {
-            case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-            case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for persistenceId:$persistenceId and sequenceNr:$sequenceNr")
+            case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
+            case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
           }
         }
         .runForeach(recoveryCallback)
