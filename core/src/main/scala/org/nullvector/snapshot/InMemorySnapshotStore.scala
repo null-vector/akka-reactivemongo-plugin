@@ -22,7 +22,7 @@ class InMemorySnapshotStore(val system: ActorSystem) extends SnapshotStoreOps {
       .map(_.lastOption)
       .flatMap {
         case Some(entry) => eventSerializer
-          .deserialize(entry.manifest, entry.event)
+          .deserialize(entry.manifest, entry.event, persistenceId, entry.sequence.toString)
           .map(snapshot => Some(SelectedSnapshot(SnapshotMetadata(persistenceId, entry.sequence, entry.timestamp), snapshot)))
         case None =>
           Future.successful(None)

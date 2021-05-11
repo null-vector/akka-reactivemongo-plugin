@@ -43,7 +43,7 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
       .mapConcat(identity)
       .map(_.eventEntry)
       .filter(entry => entry.sequence >= fromSequenceNr && entry.sequence <= toSequenceNr)
-      .mapAsync(15)(entry => eventSerializer.deserialize(entry.manifest, entry.event).map(payload => entry -> payload))
+      .mapAsync(15)(entry => eventSerializer.deserialize(entry.manifest, entry.event, persistenceId, entry.sequence.toString).map(payload => entry -> payload))
       .map(entryAndPayload => eventEntry2PersistentRepr(persistenceId) _ tupled entryAndPayload)
       .runForeach(recoveryCallback)
       .map(_ => ())

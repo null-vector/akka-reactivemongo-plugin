@@ -12,6 +12,7 @@ import reactivemongo.api.bson._
 import reactivemongo.api.bson.collection.BSONCollection
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
   this: ReactiveMongoJournalImpl =>
@@ -21,7 +22,7 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
-    //logger.debug(s"Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
+    logger.debug(s"Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
     rxDriver.journalCollection(persistenceId).flatMap { collection: BSONCollection =>
       val query = BSONDocument(
         Fields.persistenceId -> persistenceId,
@@ -41,17 +42,21 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
         .documentSource(if (max >= Int.MaxValue) Int.MaxValue else max.intValue())
         .withAttributes(ActorAttributes.dispatcher(pluginDispatcherName))
         .mapConcat(_.getAsOpt[Seq[BSONDocument]](Fields.events).get)
-        .mapAsync(parallelism) { doc =>
+        .mapAsync(1) { doc =>
           val manifest = doc.getAsOpt[String](Fields.manifest).get
           val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
-          serializer.deserialize(manifest, rawPayload).map(payload =>
+          val sequenceNr: String = doc.getAsOpt[String](Fields.from_sn).getOrElse("none")
+          serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr).map(payload =>
             PersistentRepr(
               payload,
               doc.getAsOpt[Long](Fields.sequence).get,
               doc.getAsOpt[String](Fields.persistenceId).get,
               manifest
             )
-          )
+          ) andThen {
+            case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for persistenceId:$persistenceId and sequenceNr:$sequenceNr")
+            case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for persistenceId:$persistenceId and sequenceNr:$sequenceNr")
+          }
         }
         .runForeach(recoveryCallback)
     }.map { _ => }

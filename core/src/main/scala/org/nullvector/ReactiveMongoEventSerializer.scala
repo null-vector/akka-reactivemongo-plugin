@@ -38,12 +38,12 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> r._3)
     }
 
-  def deserialize(manifest: String, event: BSONDocument): Future[Any] = {
+  def deserialize(manifest: String, event: BSONDocument, persistenceId: String, sequenceNumber: String): Future[Any] = {
     manifest match {
       case Fields.manifest_doc => Future.successful(event)
       case _ =>
         val promise = Promise[Any]()
-        adapterRegistryRef ! Deserialize(manifest, event, promise)
+        adapterRegistryRef ! Deserialize(manifest, event, persistenceId, sequenceNumber, promise)
         promise.future
     }
   }
@@ -120,11 +120,13 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
           }
         ))
 
-        case Deserialize(manifest, document, promise) =>
+        case Deserialize(manifest, document, persistenceId, sequenceNumber, promise) =>
           promise.complete(Try(
             adaptersByManifest.get(manifest) match {
               case Some(adapter) => adapter match {
-                case e: EventAdapter[_] => e.bsonToPayload(document)
+                case e: EventAdapter[_] =>
+                  log.debug(s"[[Roro]] Deserializing event for persistenceId:$persistenceId and sequenceNr:$sequenceNumber ")
+                  e.bsonToPayload(document)
                 case e: AkkaEventAdapter => e.fromJournal(document, manifest) match {
                   case SingleEventSeq(event) => event
                   case EventsSeq(event :: _) => event
@@ -144,7 +146,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   private case class Serialize(realPayload: Any, resultPromise: Promise[(BSONDocument, String, Set[String])])
 
-  private case class Deserialize(manifest: String, BSONDocument: BSONDocument, promise: Promise[Any])
+  private case class Deserialize(manifest: String, BSONDocument: BSONDocument, persistenceId: String, sequenceNumber: String, promise: Promise[Any])
 
 }
 

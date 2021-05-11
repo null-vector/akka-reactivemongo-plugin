@@ -21,7 +21,7 @@ class ReactiveMongoSnapshotImpl(
   protected val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(actorSystem)
 
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
-//    logger.debug("Loading Snapshot for {} with {}", persistenceId, criteria)
+    logger.debug("[[Roro]] Loading Snapshot for {}", persistenceId)
     val eventualMaybeSnapshot = for {
       collection <- rxDriver.snapshotCollection(persistenceId)
       queryBuilder = collection.find(
@@ -41,9 +41,10 @@ class ReactiveMongoSnapshotImpl(
           case (_, Some(payloadDoc)) => payloadDoc
           case _ => throw new Exception("No payload found")
         }
-//        logger.debug("Snapshot Bson for {} is: {}", persistenceId, BsonTextNormalizer.lazyBsonText(payloadDoc))
         (doc.getAsOpt[String](Fields.manifest) match {
-          case Some(manifest) => serializer.deserialize(manifest, payloadDoc)
+          case Some(manifest) =>
+            val sequenceNr = doc.getAsOpt[String](Fields.sequence).getOrElse("none")
+            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr)
           case None => Future.successful(payloadDoc)
         }).map(snapshot =>
           Some(SelectedSnapshot(
@@ -56,12 +57,19 @@ class ReactiveMongoSnapshotImpl(
           )))
       }.getOrElse(Future.successful(None))
     } yield maybeSelected
-//    eventualMaybeSnapshot.onComplete {
-//      case Failure(exception) => logger.error(s"Loading Snapshot fail: $exception", exception)
-//      case Success(maybeSnapshot) => logger.debug("Snapshot Loaded: {}", new Object{
-//        override def toString = maybeSnapshot.toString.take(1024)
-//      })
-//    }
+
+    eventualMaybeSnapshot andThen {
+      case Success(Some(snapshot)) => logger.debug(s"[[Roro]] Deserialization completed for persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
+      case Success(None) => logger.debug(s"[[Roro]] Deserialization completed. No snapshot offer for persistenceId:$persistenceId")
+      case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for persistenceId:$persistenceId")
+    }
+
+    //    eventualMaybeSnapshot.onComplete {
+    //      case Failure(exception) => logger.error(s"Loading Snapshot fail: $exception", exception)
+    //      case Success(maybeSnapshot) => logger.debug("Snapshot Loaded: {}", new Object{
+    //        override def toString = maybeSnapshot.toString.take(1024)
+    //      })
+    //    }
     eventualMaybeSnapshot
   }
 

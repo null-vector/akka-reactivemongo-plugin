@@ -71,7 +71,7 @@ class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoSc
       Future.successful(eventEnvelope(entry.event, event.offset))
     else
       serializer
-        .deserialize(entry.manifest, entry.event)
+        .deserialize(entry.manifest, entry.event, entry.persistenceId, entry.sequence.toString)
         .map(deserialized => eventEnvelope(deserialized, event.offset))
   }
 
