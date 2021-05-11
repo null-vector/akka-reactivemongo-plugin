@@ -25,7 +25,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   private val adaptersByType: mutable.HashMap[AdapterKey, Any] = mutable.HashMap()
   private val adaptersByManifest: mutable.HashMap[String, Any] = mutable.HashMap()
 
-  private val adapterRegistryRef: ActorRef = system.systemActorOf(RoundRobinPool(5)
+  private val adapterRegistryRef: ActorRef = system.systemActorOf(RoundRobinPool(30)
     .props(Props(EventAdapterRegistry(adaptersByType, adaptersByManifest))
       .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "EventAdapterRegistry")
 
