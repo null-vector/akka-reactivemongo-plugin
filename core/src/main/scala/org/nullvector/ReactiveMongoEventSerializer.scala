@@ -3,11 +3,12 @@ package org.nullvector
 import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
 import akka.persistence._
 import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
+import akka.routing.RoundRobinPool
 import reactivemongo.api.bson.BSONDocument
 
-import scala.collection.immutable
+import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.reflect.ClassTag
+import scala.util.Try
 
 object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerializer] with ExtensionIdProvider {
 
@@ -20,8 +21,13 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
   protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
-  private val adapterRegistryRef: ActorRef = system.systemActorOf(
-    Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
+
+  private val adaptersByType: mutable.HashMap[AdapterKey, Any] = mutable.HashMap()
+  private val adaptersByManifest: mutable.HashMap[String, Any] = mutable.HashMap()
+
+  private val adapterRegistryRef: ActorRef = system.systemActorOf(RoundRobinPool(5)
+    .props(Props(EventAdapterRegistry(adaptersByType, adaptersByManifest))
+      .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "EventAdapterRegistry")
 
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
     persistentRepr.payload match {
@@ -78,20 +84,21 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   }
 
 
-  class EventAdapterRegistry extends Actor with ActorLogging {
-    private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
-    private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
+  case class EventAdapterRegistry(
+                                   adaptersByType: mutable.HashMap[AdapterKey, Any],
+                                   adaptersByManifest: mutable.HashMap[String, Any]
+                                 ) extends Actor with ActorLogging {
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
-        adaptersByType = adaptersByType + (eventAdapter.eventKey -> eventAdapter)
-        adaptersByManifest = adaptersByManifest + (eventAdapter.manifest -> eventAdapter)
+        adaptersByType addOne (eventAdapter.eventKey -> eventAdapter)
+        adaptersByManifest addOne (eventAdapter.manifest -> eventAdapter)
         log.info("EventAdapter {} with manifest {} was added", eventAdapter.eventKey, eventAdapter.manifest)
 
       case RegisterAkkaAdapter(key, adapter) =>
         val manifest = adapter.manifest(null)
-        adaptersByType = adaptersByType + (key -> adapter)
-        adaptersByManifest = adaptersByManifest + (manifest -> adapter)
+        adaptersByType addOne (key -> adapter)
+        adaptersByManifest addOne (manifest -> adapter)
         log.info("Akka EventAdapter {} with manifest {} was added", key, manifest)
 
       case Serialize(realPayload, promise) => promise.completeWith(Future(
@@ -108,10 +115,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         }
       ))
 
-      case Deserialize(manifest, document, promise) =>
-
-
-        promise.completeWith(Future(
+      case Deserialize(manifest, document, promise) => promise.complete(Try(
         adaptersByManifest.get(manifest) match {
           case Some(adapter) => adapter match {
             case e: EventAdapter[_] => e.bsonToPayload(document)
