@@ -6,7 +6,7 @@ import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter
 import akka.routing.RoundRobinPool
 import reactivemongo.api.bson.BSONDocument
 
-import scala.collection.mutable
+import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
@@ -21,13 +21,8 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
   protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
-
-  private val adaptersByType: mutable.HashMap[AdapterKey, Any] = mutable.HashMap()
-  private val adaptersByManifest: mutable.HashMap[String, Any] = mutable.HashMap()
-
-  private val adapterRegistryRef: ActorRef = system.systemActorOf(RoundRobinPool(30)
-    .props(Props(EventAdapterRegistry(adaptersByType, adaptersByManifest))
-      .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "EventAdapterRegistry")
+  private val adapterRegistryRef: ActorRef = system.systemActorOf(
+    Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
 
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
     persistentRepr.payload match {
@@ -84,50 +79,62 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   }
 
 
-  case class EventAdapterRegistry(
-                                   adaptersByType: mutable.HashMap[AdapterKey, Any],
-                                   adaptersByManifest: mutable.HashMap[String, Any]
-                                 ) extends Actor with ActorLogging {
+  class EventAdapterRegistry extends Actor with ActorLogging {
+    private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
+    private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
+
+    private val workers: ActorRef = system.systemActorOf(RoundRobinPool(30)
+      .props(Props(WorkerSerializer())
+        .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "PoolSerializers")
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
-        adaptersByType addOne (eventAdapter.eventKey -> eventAdapter)
-        adaptersByManifest addOne (eventAdapter.manifest -> eventAdapter)
+        adaptersByType = adaptersByType + (eventAdapter.eventKey -> eventAdapter)
+        adaptersByManifest = adaptersByManifest + (eventAdapter.manifest -> eventAdapter)
         log.info("EventAdapter {} with manifest {} was added", eventAdapter.eventKey, eventAdapter.manifest)
 
       case RegisterAkkaAdapter(key, adapter) =>
         val manifest = adapter.manifest(null)
-        adaptersByType addOne (key -> adapter)
-        adaptersByManifest addOne (manifest -> adapter)
+        adaptersByType = adaptersByType + (key -> adapter)
+        adaptersByManifest = adaptersByManifest + (manifest -> adapter)
         log.info("Akka EventAdapter {} with manifest {} was added", key, manifest)
 
-      case Serialize(realPayload, promise) => promise.completeWith(Future(
-        adaptersByType.get(AdapterKey(realPayload.getClass)) match {
-          case Some(adapter) => adapter match {
-            case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.readTags(realPayload))
-            case e: AkkaEventAdapter =>
-              e.toJournal(realPayload) match {
-                case Tagged(payload: BSONDocument, tags) => (payload, e.manifest(realPayload), tags)
-                case payload: BSONDocument => (payload, e.manifest(realPayload), Set.empty)
-              }
-          }
-          case None => throw new Exception(s"There is no an EventAdapter for $realPayload")
-        }
-      ))
+      case serialize: Serialize => workers forward serialize
 
-      case Deserialize(manifest, document, promise) => promise.complete(Try(
-        adaptersByManifest.get(manifest) match {
-          case Some(adapter) => adapter match {
-            case e: EventAdapter[_] => e.bsonToPayload(document)
-            case e: AkkaEventAdapter => e.fromJournal(document, manifest) match {
-              case SingleEventSeq(event) => event
-              case EventsSeq(event :: _) => event
-              case e => throw new Exception(e.toString)
+      case deserialize: Deserialize => workers forward deserialize
+    }
+
+    case class WorkerSerializer() extends Actor {
+      override def receive: Receive = {
+        case Serialize(realPayload, promise) => promise.complete(Try(
+          adaptersByType.get(AdapterKey(realPayload.getClass)) match {
+            case Some(adapter) => adapter match {
+              case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.readTags(realPayload))
+              case e: AkkaEventAdapter =>
+                e.toJournal(realPayload) match {
+                  case Tagged(payload: BSONDocument, tags) => (payload, e.manifest(realPayload), tags)
+                  case payload: BSONDocument => (payload, e.manifest(realPayload), Set.empty)
+                }
             }
+            case None => throw new Exception(s"There is no an EventAdapter for $realPayload")
           }
-          case None => throw new Exception(s"There is no an EventAdapter for $manifest")
-        }
-      ))
+        ))
+
+        case Deserialize(manifest, document, promise) =>
+          promise.complete(Try(
+            adaptersByManifest.get(manifest) match {
+              case Some(adapter) => adapter match {
+                case e: EventAdapter[_] => e.bsonToPayload(document)
+                case e: AkkaEventAdapter => e.fromJournal(document, manifest) match {
+                  case SingleEventSeq(event) => event
+                  case EventsSeq(event :: _) => event
+                  case e => throw new Exception(e.toString)
+                }
+              }
+              case None => throw new Exception(s"There is no an EventAdapter for $manifest")
+            }
+          ))
+      }
     }
   }
 
