@@ -42,11 +42,11 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
       ack.success(Done)
 
     case GetJournalCollectionNameFor(persistentId, promise) =>
-      val name = s"$journalPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
+      val name = s"$journalPrefix${nameMapping.collectionNameOf(persistentId).fold("")(name => s"_$name")}"
       promise completeWith verifiedJournalCollection(name)
 
     case GetSnapshotCollectionNameFor(persistentId, promise) =>
-      val name = s"$snapshotPrefix${nameMapping.collectionNameOf(persistentId).map(name => s"_$name").getOrElse("")}"
+      val name = s"$snapshotPrefix${nameMapping.collectionNameOf(persistentId).fold("")(name => s"_$name")}"
       promise completeWith verifiedSnapshotCollection(name)
 
     case AddVerified(collectionName) => verifiedNames += collectionName
@@ -69,7 +69,7 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
       val collections = Promise[List[BSONCollection]]
       context.self ! GetJournals(collections)
       val eventualDone = collections.future.map(_.headOption).flatMap {
-        case Some(collection) => collection.find(BSONDocument()).one.map(_ => Done)
+        case Some(collection) => collection.find(BSONDocument.empty).one.map(_ => Done)
         case None => Future.successful(Done)
       }
       ack completeWith eventualDone

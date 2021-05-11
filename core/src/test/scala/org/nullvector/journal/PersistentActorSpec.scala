@@ -7,7 +7,7 @@ import akka.persistence.{PersistentActor, SnapshotOffer}
 import akka.stream.scaladsl.{Sink, Source}
 import akka.testkit.{ImplicitSender, TestKitBase}
 import com.typesafe.config.ConfigFactory
-import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import org.nullvector.{EventAdapter, EventAdapterFactory, ReactiveMongoDriver, ReactiveMongoEventSerializer}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
@@ -27,6 +27,7 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
   val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
   implicit val dispatcher: ExecutionContextExecutor = system.dispatcher
   serializer.addEventAdapter(new AnEventEventAdapter)
+  serializer.addEventAdapter(new AFaultyEventAdapter)
 
   def randomId: Long = Random.nextLong().abs
 
@@ -63,6 +64,16 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
       actorRef ! Kill
       actorRef ! Command("get_state")
       expectMsg(7.seconds, Some("Action Three"))
+    }
+
+    "Rea will fail" in {
+      val persistId = randomId.toString
+      val actorRef = autoRestartFactory.create(Props(new SomePersistentActor(persistId)), persistId)
+      actorRef ! Command("save_faulty_event")
+      expectMsg(7.seconds,Done)
+      actorRef ! Kill
+      actorRef ! Command("get_state")
+      expectNoMessage(1.seconds)
     }
 
     "Recover Events" in {
@@ -132,6 +143,8 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
     override def receiveCommand: Receive = {
       case Command("get_state") => sender() ! state
 
+      case Command("save_faulty_event") => persist(FaultyEvent("will fail"))(_ => sender() ! Done)
+
       case Command("delete") =>
         state = None
         deleteMessages(lastSequenceNr)
@@ -178,6 +191,20 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
     override def payloadToBson(payload: AnEvent): BSONDocument = anEventMapper.writeTry(payload).get
 
     override def bsonToPayload(doc: BSONDocument): AnEvent = anEventMapper.readDocument(doc).get
+  }
+
+  case class FaultyEvent(property1: String)
+
+  class AFaultyEventAdapter extends EventAdapter[FaultyEvent] {
+    override val manifest: String = "FaultyEvent"
+
+    override def tags(payload: FaultyEvent): Set[String] = Set.empty
+
+    private val mapping = EventAdapterFactory.mappingOf[FaultyEvent]
+
+    override def payloadToBson(payload: FaultyEvent): BSONDocument = BSONDocument("faultyField" -> "boom")
+
+    override def bsonToPayload(doc: BSONDocument): FaultyEvent = mapping.readDocument(doc).get
   }
 
 }

@@ -7,16 +7,22 @@ import org.nullvector.ReactiveMongoDriver.QueryType
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.api.bson._
 import org.nullvector._
+import org.nullvector.bson.BsonTextNormalizer
+import org.nullvector.logging.LoggerPerClassAware
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
 
-class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem) extends ReactiveMongoPlugin with SnapshotStoreOps {
+class ReactiveMongoSnapshotImpl(
+                                 val config: Config, val actorSystem: ActorSystem
+                               ) extends ReactiveMongoPlugin
+  with SnapshotStoreOps with LoggerPerClassAware {
 
   protected val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(actorSystem)
 
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
-    for {
+//    logger.debug("Loading Snapshot for {} with {}", persistenceId, criteria)
+    val eventualMaybeSnapshot = for {
       collection <- rxDriver.snapshotCollection(persistenceId)
       queryBuilder = collection.find(
         BSONDocument(
@@ -35,6 +41,7 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           case (_, Some(payloadDoc)) => payloadDoc
           case _ => throw new Exception("No payload found")
         }
+//        logger.debug("Snapshot Bson for {} is: {}", persistenceId, BsonTextNormalizer.lazyBsonText(payloadDoc))
         (doc.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) => serializer.deserialize(manifest, payloadDoc)
           case None => Future.successful(payloadDoc)
@@ -49,6 +56,13 @@ class ReactiveMongoSnapshotImpl(val config: Config, val actorSystem: ActorSystem
           )))
       }.getOrElse(Future.successful(None))
     } yield maybeSelected
+//    eventualMaybeSnapshot.onComplete {
+//      case Failure(exception) => logger.error(s"Loading Snapshot fail: $exception", exception)
+//      case Success(maybeSnapshot) => logger.debug("Snapshot Loaded: {}", new Object{
+//        override def toString = maybeSnapshot.toString.take(1024)
+//      })
+//    }
+    eventualMaybeSnapshot
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {

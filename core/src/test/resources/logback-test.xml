@@ -7,6 +7,7 @@
 
     <logger name="reactivemongo" level="WARN"/>
     <logger name="reactivemongo.core.netty.Pack" level="INFO"/>
+    <logger name="org.nullvector" level="DEBUG"/>
 
     <!-- Setting the root level of SYSLOG to INFO -->
     <root level="INFO">

@@ -19,10 +19,9 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 }
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
-
-  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
-
-  private val adapterRegistryRef: ActorRef = system.systemActorOf(Props(new EventAdapterRegistry()), "EventAdapterRegistry")
+  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
+  private val adapterRegistryRef: ActorRef = system.systemActorOf(
+    Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
 
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
     persistentRepr.payload match {
@@ -109,7 +108,10 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         }
       ))
 
-      case Deserialize(manifest, document, promise) => promise.completeWith(Future(
+      case Deserialize(manifest, document, promise) =>
+
+
+        promise.completeWith(Future(
         adaptersByManifest.get(manifest) match {
           case Some(adapter) => adapter match {
             case e: EventAdapter[_] => e.bsonToPayload(document)

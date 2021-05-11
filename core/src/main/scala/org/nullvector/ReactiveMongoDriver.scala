@@ -7,6 +7,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.QueryType.QueryType
 import org.nullvector.ReactiveMongoDriver.{DatabaseProvider, QueryType}
+import org.nullvector.bson.BsonTextNormalizer
 import org.slf4j.{Logger, LoggerFactory}
 import play.api.libs.json.Json
 import reactivemongo.api.DB
@@ -37,13 +38,12 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   protected val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  private val dispatcherName = "akka-persistence-reactivemongo-dispatcher"
-  private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(dispatcherName)
+  private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
   private implicit val timeout: Timeout = Timeout(5.seconds)
 
   import Collections._
 
-  private val collectionsProps: Props = Props(new Collections(system)).withDispatcher(dispatcherName)
+  private val collectionsProps: Props = Props(new Collections(system)).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)
   private val collections: ActorRef = system.systemActorOf(collectionsProps, "ReactiveMongoDriverCollections")
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {

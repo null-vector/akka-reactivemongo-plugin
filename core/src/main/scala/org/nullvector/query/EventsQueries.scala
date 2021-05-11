@@ -2,8 +2,9 @@ package org.nullvector.query
 
 import akka.NotUsed
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
+import akka.stream.ActorAttributes
 import akka.stream.scaladsl.{Flow, Source}
-import org.nullvector.Fields
+import org.nullvector.{Fields, ReactiveMongoPlugin}
 import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.{Cursor, CursorProducer}
@@ -129,7 +130,9 @@ trait EventsQueries
       producer.produce(aggregateCursor)
     }
 
-    aggregate.documentSource()
+    aggregate
+      .documentSource()
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
   }
 
   private def buildFindEventsByIdQuery(coll: collection.BSONCollection, persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long) = {
