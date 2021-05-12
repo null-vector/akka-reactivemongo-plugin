@@ -22,7 +22,7 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
-    logger.debug(s"Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
+    logger.debug(s"[[Roro]] Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
     rxDriver.journalCollection(persistenceId).flatMap { collection: BSONCollection =>
       val query = BSONDocument(
         Fields.persistenceId -> persistenceId,
