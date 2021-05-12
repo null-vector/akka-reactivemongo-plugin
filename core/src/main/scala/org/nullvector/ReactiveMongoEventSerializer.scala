@@ -1,12 +1,14 @@
 package org.nullvector
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, OneForOneStrategy, Props, SupervisorStrategy}
 import akka.persistence._
 import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
 import akka.routing.RoundRobinPool
+import org.nullvector.util.TimeoutPromise
 import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.immutable
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
@@ -16,25 +18,37 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
   override def createExtension(system: ExtendedActorSystem): ReactiveMongoEventSerializer =
     new ReactiveMongoEventSerializer(system)
-
 }
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
-  protected implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
-  private val adapterRegistryRef: ActorRef = system.systemActorOf(
-    Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
+  private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
+  private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
+  private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
+
+  private val serializerRef: ActorRef = system.systemActorOf(Props(new Actor {
+    private val registryRef: ActorRef = context.actorOf(
+      Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
+
+    override def supervisorStrategy: SupervisorStrategy = OneForOneStrategy() { case _ =>
+      SupervisorStrategy.Restart
+    }
+
+    override def receive: Receive = {
+      case command => registryRef forward command
+    }
+  }), "ReactiveMongoEventSerializer")
 
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
     persistentRepr.payload match {
       case _: BSONDocument => Future.successful(persistentRepr.withManifest(Fields.manifest_doc) -> Set.empty)
       case Tagged(realPayload, tags) =>
-        val promise = Promise[(BSONDocument, String, Set[String])]()
-        adapterRegistryRef ! Serialize(realPayload, promise)
+        val promise = TimeoutPromise[(BSONDocument, String, Set[String])](15.seconds, "Serialization has timed out.")
+        serializerRef ! Serialize(realPayload, promise)
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> (tags ++ r._3))
 
       case payload =>
-        val promise = Promise[(BSONDocument, String, Set[String])]()
-        adapterRegistryRef ! Serialize(payload, promise)
+        val promise = TimeoutPromise[(BSONDocument, String, Set[String])](15.seconds, "Serialization has timed out.")
+        serializerRef ! Serialize(payload, promise)
         promise.future.map(r => persistentRepr.withManifest(r._2).withPayload(r._1) -> r._3)
     }
 
@@ -42,16 +56,16 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     manifest match {
       case Fields.manifest_doc => Future.successful(event)
       case _ =>
-        val promise = Promise[Any]()
-        adapterRegistryRef ! Deserialize(manifest, event, persistenceId, sequenceNumber, promise)
+        val promise = TimeoutPromise[Any](15.seconds, "Deserialization has timed out.")
+        serializerRef ! Deserialize(manifest, event, persistenceId, sequenceNumber, promise)
         promise.future
     }
   }
 
-  def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = adapterRegistryRef ! RegisterAdapter(eventAdapter)
+  def addEventAdapter(eventAdapter: EventAdapter[_]): Unit = serializerRef ! RegisterAdapter(eventAdapter)
 
   def addAkkaEventAdapter(eventType: Class[_], akkaEventAdapter: AkkaEventAdapter): Unit =
-    adapterRegistryRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
+    serializerRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
 
   def loadAkkaAdaptersFrom(path: String): Unit = {
     import scala.jdk.CollectionConverters._
@@ -80,9 +94,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
 
   class EventAdapterRegistry extends Actor with ActorLogging {
-    private var adaptersByType: immutable.HashMap[AdapterKey, Any] = immutable.HashMap()
-    private var adaptersByManifest: immutable.HashMap[String, Any] = immutable.HashMap()
-
     private val workers: ActorRef = system.systemActorOf(RoundRobinPool(Runtime.getRuntime.availableProcessors())
       .props(Props(WorkerSerializer())
         .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "PoolSerializers")
