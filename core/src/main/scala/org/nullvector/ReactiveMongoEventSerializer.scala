@@ -1,9 +1,9 @@
 package org.nullvector
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, OneForOneStrategy, Props, SupervisorStrategy}
+import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, OneForOneStrategy, Props, SupervisorStrategy, Terminated}
 import akka.persistence._
 import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
-import akka.routing.RoundRobinPool
+import akka.routing.{ActorRefRoutee, RoundRobinRoutingLogic, Router}
 import org.nullvector.util.TimeoutPromise
 import reactivemongo.api.bson.BSONDocument
 
@@ -29,13 +29,10 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
     private val registryRef: ActorRef = context.actorOf(
       Props(new EventAdapterRegistry()).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName), "EventAdapterRegistry")
 
-    override def supervisorStrategy: SupervisorStrategy = OneForOneStrategy() { case _ =>
-      SupervisorStrategy.Restart
-    }
+    override def supervisorStrategy: SupervisorStrategy = OneForOneStrategy()(_ => SupervisorStrategy.Restart)
 
-    override def receive: Receive = {
-      case command => registryRef forward command
-    }
+    override def receive: Receive = registryRef forward _
+
   }), "ReactiveMongoEventSerializer")
 
   def serialize(persistentRepr: PersistentRepr): Future[(PersistentRepr, Set[String])] =
@@ -94,9 +91,14 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
 
   class EventAdapterRegistry extends Actor with ActorLogging {
-    private val workers: ActorRef = system.systemActorOf(RoundRobinPool(Runtime.getRuntime.availableProcessors())
-      .props(Props(WorkerSerializer())
-        .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)), "PoolSerializers")
+    var router: Router = {
+      val routees = Vector.fill(Runtime.getRuntime.availableProcessors()) {
+        val r = context.actorOf(Props(WorkerSerializer()))
+        context.watch(r)
+        ActorRefRoutee(r)
+      }
+      Router(RoundRobinRoutingLogic(), routees)
+    }
 
     override def receive: Receive = {
       case RegisterAdapter(eventAdapter) =>
@@ -110,9 +112,16 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
         adaptersByManifest = adaptersByManifest + (manifest -> adapter)
         log.info("Akka EventAdapter {} with manifest {} was added", key, manifest)
 
-      case serialize: Serialize => workers forward serialize
+      case serialize: Serialize => router.route(serialize, sender())
 
-      case deserialize: Deserialize => workers forward deserialize
+      case deserialize: Deserialize => router.route(deserialize, sender())
+
+      case Terminated(route) =>
+        log.debug("[[Roro]] Serializer worker has been terminated")
+        router = router.removeRoutee(route)
+        val r = context.actorOf(Props(WorkerSerializer()))
+        context.watch(r)
+        router = router.addRoutee(r)
     }
 
     case class WorkerSerializer() extends Actor {
