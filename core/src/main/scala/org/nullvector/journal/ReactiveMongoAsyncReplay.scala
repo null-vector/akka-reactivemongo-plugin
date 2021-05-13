@@ -42,51 +42,29 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
         .cursor[BSONDocument]()
         .collect[List](if (max >= Int.MaxValue) Int.MaxValue else max.intValue())
         .flatMap { docs =>
-            val eventualsRep = docs
-              .flatMap(_.getAsOpt[Seq[BSONDocument]](Fields.events).get)
-              .map { doc =>
-                val manifest = doc.getAsOpt[String](Fields.manifest).get
-                val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
-                val sequenceNr = doc.getAsOpt[Long](Fields.sequence).get
-                serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr.toString).map(payload =>
-                  PersistentRepr(
-                    payload,
-                    doc.getAsOpt[Long](Fields.sequence).get,
-                    doc.getAsOpt[String](Fields.persistenceId).get,
-                    manifest
-                  )
-                ) andThen {
-                  case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-                  case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-                }
+          val eventualsRep = docs
+            .flatMap(_.getAsOpt[Seq[BSONDocument]](Fields.events).get)
+            .map { doc =>
+              val manifest = doc.getAsOpt[String](Fields.manifest).get
+              val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
+              val sequenceNr = doc.getAsOpt[Long](Fields.sequence).get
+              serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr.toString).map(payload =>
+                PersistentRepr(
+                  payload,
+                  doc.getAsOpt[Long](Fields.sequence).get,
+                  doc.getAsOpt[String](Fields.persistenceId).get,
+                  manifest
+                )
+              ) andThen {
+                case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
+                case Failure(ex) => logger.error(s"[[Roro]] Deserialization failed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr", ex)
               }
+            }
 
           Future
             .sequence(eventualsRep)
             .map(_.foreach(recoveryCallback))
         }
-//      queryBuilder
-//        .cursor[BSONDocument]()
-//        .documentSource(if (max >= Int.MaxValue) Int.MaxValue else max.intValue())
-//        .withAttributes(ActorAttributes.dispatcher(pluginDispatcherName))
-//        .mapConcat(_.getAsOpt[Seq[BSONDocument]](Fields.events).get)
-//        .mapAsync(1) { doc =>
-//          val manifest = doc.getAsOpt[String](Fields.manifest).get
-//          val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
-//          val sequenceNr: String = doc.getAsOpt[String](Fields.from_sn).getOrElse("none")
-//          serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr).map(payload =>
-//            PersistentRepr(
-//              payload,
-//              doc.getAsOpt[Long](Fields.sequence).get,
-//              doc.getAsOpt[String](Fields.persistenceId).get,
-//              manifest
-//            )
-//          ) andThen {
-//            case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-//            case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-//          }
-//        }
-//        .runForeach(recoveryCallback)
 
     }.map { _ => }
   }

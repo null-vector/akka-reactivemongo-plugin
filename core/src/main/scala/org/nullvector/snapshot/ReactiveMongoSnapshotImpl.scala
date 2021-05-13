@@ -72,7 +72,7 @@ class ReactiveMongoSnapshotImpl(
   } andThen {
     case Success(Some(snapshot)) => logger.debug(s"[[Roro]] Deserialization completed for snapshot with persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
     case Success(None) => logger.debug(s"[[Roro]] Deserialization completed. No snapshot offer for persistenceId:$persistenceId")
-    case Failure(_) => logger.debug(s"[[Roro]] Deserialization failed for snapshot with persistenceId:$persistenceId")
+    case Failure(ex) => logger.error(s"[[Roro]] Deserialization failed for snapshot with persistenceId:$persistenceId", ex)
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
