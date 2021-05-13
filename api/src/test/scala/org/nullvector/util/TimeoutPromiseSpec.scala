@@ -14,19 +14,19 @@ class TimeoutPromiseSpec extends FlatSpec with Matchers {
   it should """ dont fail """ in {
     val pumPromise = TimeoutPromise[Int](8.millis, "Pum")
     Thread.sleep(2)
-    pumPromise.completeWith(Future.successful(34))
-    Await.result(pumPromise.future, 2.millis) should be
-    34
+    pumPromise.complete(Success(34))
+    Await.result(pumPromise.future, 2.millis) shouldBe 34
   }
 
   it should """ fail """ in {
     val pumPromise = TimeoutPromise[Int](3.millis, "Pum")
-    Thread.sleep(9)
-    pumPromise.completeWith(Future.successful(34))
+    Thread.sleep(10)
+    pumPromise.tryComplete(Success(34))
     a[PromiseTimeoutException] shouldBe thrownBy(
       Await.result(pumPromise.future, 2.millis)
     )
   }
+
 
 }
 
