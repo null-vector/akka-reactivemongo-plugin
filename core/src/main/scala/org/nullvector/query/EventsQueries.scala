@@ -34,8 +34,7 @@ trait EventsQueries
   implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => {
     val manifest = event.getAsOpt[String](Fields.manifest).get
     val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
-    val sequenceNr = event.getAsOpt[String](Fields.from_sn).getOrElse("none")
-    serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr)
+    serializer.deserialize(manifest, rawPayload, persistenceId, "eventQuery")
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {

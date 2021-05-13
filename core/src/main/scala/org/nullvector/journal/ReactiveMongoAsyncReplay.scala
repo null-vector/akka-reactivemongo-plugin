@@ -47,8 +47,8 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
               .map { doc =>
                 val manifest = doc.getAsOpt[String](Fields.manifest).get
                 val rawPayload = doc.getAsOpt[BSONDocument](Fields.payload).get
-                val sequenceNr: String = doc.getAsOpt[String](Fields.from_sn).getOrElse("none")
-                serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr).map(payload =>
+                val sequenceNr = doc.getAsOpt[Long](Fields.sequence).get
+                serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr.toString).map(payload =>
                   PersistentRepr(
                     payload,
                     doc.getAsOpt[Long](Fields.sequence).get,

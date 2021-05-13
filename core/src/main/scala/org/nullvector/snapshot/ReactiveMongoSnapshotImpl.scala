@@ -36,7 +36,7 @@ class ReactiveMongoSnapshotImpl(
 
     def generateSnapshotFromDocument(maybeDoc: Option[BSONDocument]) = maybeDoc match {
       case Some(document) =>
-        logger.debug(s"[[Roro]] Document snapshot retrieved from mongo for persistenceId$persistenceId")
+        logger.debug(s"[[Roro]] Document snapshot for persistenceId:$persistenceId retrieved from mongo")
 
         val payloadDoc = document.getAsOpt[BSONDocument](Fields.payload) orElse
           document.getAsOpt[BSONDocument](Fields.snapshot_payload) getOrElse
@@ -44,8 +44,8 @@ class ReactiveMongoSnapshotImpl(
 
         val deserializePayload = document.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) =>
-            val sequenceNr = document.getAsOpt[String](Fields.sequence).getOrElse("none")
-            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr)
+            val sequenceNr = document.getAsOpt[Long](Fields.sequence).get
+            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr.toString)
           case None => Future.successful(payloadDoc)
         }
 
