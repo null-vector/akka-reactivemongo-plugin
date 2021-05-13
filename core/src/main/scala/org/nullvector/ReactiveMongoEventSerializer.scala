@@ -145,7 +145,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
             adaptersByManifest.get(manifest) match {
               case Some(adapter) => adapter match {
                 case e: EventAdapter[_] =>
-                  log.debug(s"[[Roro]] Deserializing event for persistenceId:$persistenceId and sequenceNr:$sequenceNumber ")
+                  log.debug(s"[[Roro]] Deserializing $manifest for persistenceId:$persistenceId and sequenceNr:$sequenceNumber ")
                   e.bsonToPayload(document)
                 case e: AkkaEventAdapter => e.fromJournal(document, manifest) match {
                   case SingleEventSeq(event) => event
