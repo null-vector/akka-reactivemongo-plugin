@@ -98,7 +98,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
   }
 
   class EventAdapterRegistry extends Actor with ActorLogging {
-    var router = context.actorOf(BalancingPool(Runtime.getRuntime.availableProcessors())
+    var router = context.actorOf(BalancingPool(Runtime.getRuntime.availableProcessors() * 2)
       .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)
       .props(Props(new WorkerSerializer)))
 

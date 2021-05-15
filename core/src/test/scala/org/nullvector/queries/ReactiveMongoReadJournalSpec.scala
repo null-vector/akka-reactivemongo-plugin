@@ -132,11 +132,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
 
     Await.ready(Source(1 to 10).mapAsync(amountOfCores) {
       idx =>
-        val pId = s"${
-          prefixReadColl
-        }_$idx-${
-          Random.nextLong().abs
-        }"
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
@@ -146,16 +142,12 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
     Thread.sleep(500)
     Await.ready(Source(1 to 10).mapAsync(amountOfCores) {
       idx =>
-        val pId = s"${
-          prefixReadColl
-        }_$idx-${
-          Random.nextLong().abs
-        }"
+        val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
         reactiveMongoJournalImpl.asyncWriteMessages((26 to 50).map(jIdx =>
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
     }.run(), 14.seconds)
-    Thread.sleep(1000)
+    Thread.sleep(1500)
     val eventualDone = readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
     val envelopes = Await.result(eventualDone, 14.seconds)
 
@@ -257,7 +249,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
     }.runWith(Sink.ignore), 14.seconds)
-    Thread.sleep(700)
+    Thread.sleep(800)
     envelopes.peek().persistenceId shouldBe pId
     envelopes.size shouldBe 20
   }

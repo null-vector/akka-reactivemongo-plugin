@@ -16,7 +16,7 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
-    logger.debug(s"[[Roro]] Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
+    logger.debug(s"Recovering events for {} from {} to {}", persistenceId, fromSequenceNr, toSequenceNr)
 
     def buildQuery(collection: BSONCollection) = {
       val query = BSONDocument(
@@ -55,9 +55,6 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
       bsonEvents = documents.flatMap(getEvent)
       events <- deserializeEvents(bsonEvents)
     } yield events.foreach(recoveryCallback)
-  } andThen {
-    case Success(_) => logger.debug(s"[[Roro]] All events recovered for persistenceId:$persistenceId")
-    case Failure(ex) => logger.error(s"[[Roro]] Failed recovering events for persistenceId:$persistenceId", ex)
   }
 
 }

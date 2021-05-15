@@ -1,7 +1,6 @@
 package org.nullvector.journal
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.Source
 import org.nullvector.Fields
 import org.nullvector.ReactiveMongoDriver.QueryType
 import reactivemongo.api.bson._
@@ -14,9 +13,8 @@ trait ReactiveMongoHighestSequence {
   implicit lazy val ac: ActorSystem = this.actorSystem
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
-    Source(List(journalMaxSnFrom(persistenceId, fromSequenceNr), snapshotMaxSnFrom(persistenceId)))
-      .mapAsyncUnordered(2)(identity)
-      .runReduce(_ max _)
+    val queries = List(journalMaxSnFrom(persistenceId, fromSequenceNr), snapshotMaxSnFrom(persistenceId))
+    Future.sequence(queries).map(_.max)
   }
 
   private def journalMaxSnFrom(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
@@ -29,7 +27,7 @@ trait ReactiveMongoHighestSequence {
       rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]
-        .map(_.map(_.getAsOpt[Long](Fields.to_sn).get).getOrElse(0L))
+        .map(_.fold(0L)(_.getAsOpt[Long](Fields.to_sn).get))
     }
   }
 
@@ -41,7 +39,7 @@ trait ReactiveMongoHighestSequence {
       rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]
-        .map(_.map(_.getAsOpt[Long](Fields.sequence).get).getOrElse(0L))
+        .map(_.fold(0L)(_.getAsOpt[Long](Fields.sequence).get))
     }
   }
 }

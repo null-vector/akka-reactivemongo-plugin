@@ -46,12 +46,14 @@ trait EventsQueries
         (_, fromToSequences) => fromToSequences,
         offset => currentEventsByPersistenceId(persistenceId, offset._1, offset._2)
       ))
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .mapConcat(identity)
   }
 
   override def currentEventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
     Source
       .future(rxDriver.journalCollection(persistenceId))
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
       .via(document2Envelope(manifestBasedSerialization))
   }
@@ -60,6 +62,7 @@ trait EventsQueries
     Source
       .fromGraph(new PullerGraph[EventEnvelope, Offset](
         offset, defaultRefreshInterval, _.offset, greaterOffsetOf, offset => currentEventsByTag(tag, offset)))
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .mapConcat(identity)
 
   /*
@@ -89,6 +92,7 @@ trait EventsQueries
 
   private def eventsByTagQuery(tags: Seq[String], offset: Offset)(implicit serializableMethod: (BSONDocument, BSONDocument) => Future[Any]): Source[EventEnvelope, NotUsed] = {
     Source.future(rxDriver.journals())
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .mapConcat(identity)
       .splitWhen(_ => true)
       .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
@@ -148,6 +152,7 @@ trait EventsQueries
         framework.Sort(framework.Ascending(s"${Fields.events}.${Fields.sequence}"))
       ))
       .documentSource()
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
   }
 
 }

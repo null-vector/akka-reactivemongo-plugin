@@ -22,7 +22,7 @@ class ReactiveMongoSnapshotImpl(
   protected val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(actorSystem)
 
   def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = {
-    logger.debug("[[Roro]] Loading Snapshot for {}", persistenceId)
+    logger.debug("Loading Snapshot for {}", persistenceId)
 
     def buildQuery(collection: BSONCollection) = collection.find(
       BSONDocument(
@@ -36,8 +36,7 @@ class ReactiveMongoSnapshotImpl(
 
     def generateSnapshotFromDocument(maybeDoc: Option[BSONDocument]) = maybeDoc match {
       case Some(document) =>
-        logger.debug(s"[[Roro]] Document snapshot for persistenceId:$persistenceId retrieved from mongo")
-
+        logger.debug(s"Document snapshot for persistenceId:$persistenceId loaded successfully")
         val payloadDoc = document.getAsOpt[BSONDocument](Fields.payload) orElse
           document.getAsOpt[BSONDocument](Fields.snapshot_payload) getOrElse
           (throw new Exception(s"No payload found for snapshot with persistenceId:$persistenceId"))
@@ -58,7 +57,7 @@ class ReactiveMongoSnapshotImpl(
           Some(SelectedSnapshot(snapshotMetadata, snapshot))
         }
       case None =>
-        logger.debug(s"[[Roro]] No Document snapshot found from mongo for persistenceId$persistenceId")
+        logger.debug(s"No Document snapshot found from mongo for persistenceId$persistenceId")
         Future.successful(None)
     }
 
@@ -70,9 +69,9 @@ class ReactiveMongoSnapshotImpl(
       maybeSnapshot <- generateSnapshotFromDocument(maybeDoc)
     } yield maybeSnapshot
   } andThen {
-    case Success(Some(snapshot)) => logger.debug(s"[[Roro]] Deserialization completed for snapshot with persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
-    case Success(None) => logger.debug(s"[[Roro]] Deserialization completed. No snapshot offer for persistenceId:$persistenceId")
-    case Failure(ex) => logger.error(s"[[Roro]] Deserialization failed for snapshot with persistenceId:$persistenceId", ex)
+    case Success(Some(snapshot)) => logger.debug(s"Deserialization completed for snapshot with persistenceId:$persistenceId and sequenceNr:${snapshot.metadata.sequenceNr}")
+    case Success(None) => logger.debug(s"Deserialization completed. No snapshot offer for persistenceId:$persistenceId")
+    case Failure(ex) => logger.error(s"Deserialization failed for snapshot with persistenceId:$persistenceId", ex)
   }
 
   def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = {
