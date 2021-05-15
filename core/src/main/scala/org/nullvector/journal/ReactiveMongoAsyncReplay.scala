@@ -34,31 +34,26 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
 
     def getEvent(document: BSONDocument): Seq[BSONDocument] = document.getAsOpt[Seq[BSONDocument]](Fields.events).get
 
-    def deserializeEvents(bsonEvents: Seq[BSONDocument]): Seq[Future[PersistentRepr]] = {
-      bsonEvents.map { bsonEvent =>
-        val manifest = bsonEvent.getAsOpt[String](Fields.manifest).get
-        val rawPayload = bsonEvent.getAsOpt[BSONDocument](Fields.payload).get
-        val sequenceNr = bsonEvent.getAsOpt[Long](Fields.sequence).get
-        serializer.deserialize(manifest, rawPayload, persistenceId, sequenceNr.toString) andThen {
-          case Success(_) => logger.debug(s"[[Roro]] Deserialization completed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr")
-          case Failure(ex) => logger.error(s"[[Roro]] Deserialization failed for event with persistenceId:$persistenceId and sequenceNr:$sequenceNr", ex)
-        } map (payload => PersistentRepr(
-          payload,
+    def deserializeEvents(bsonEvents: Seq[BSONDocument]): Future[Seq[PersistentRepr]] = {
+      val persistenceReps = bsonEvents.map(bsonEvent =>
+        PersistentRepr(
+          bsonEvent.getAsOpt[BSONDocument](Fields.payload).get,
           bsonEvent.getAsOpt[Long](Fields.sequence).get,
           bsonEvent.getAsOpt[String](Fields.persistenceId).get,
-          manifest
-        ))
-      }
+          bsonEvent.getAsOpt[String](Fields.manifest).get
+        )
+      )
+      serializer.deserializeAll(persistenceReps)
     }
 
     for {
       collection <- rxDriver.journalCollection(persistenceId)
       query = buildQuery(collection)
       _ = rxDriver.explain(collection)(QueryType.Recovery, query)
-      documents <- query.cursor[BSONDocument]().collect[List](max.toInt)
+      documents <- query.cursor[BSONDocument]().collect[List]()
       _ = logger.debug(s"Recovered ${documents.size} for persistenceId:$persistenceId from mongo")
       bsonEvents = documents.flatMap(getEvent)
-      events <- Future.sequence(deserializeEvents(bsonEvents))
+      events <- deserializeEvents(bsonEvents)
     } yield events.foreach(recoveryCallback)
   } andThen {
     case Success(_) => logger.debug(s"[[Roro]] All events recovered for persistenceId:$persistenceId")

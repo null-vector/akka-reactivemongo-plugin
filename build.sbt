@@ -23,6 +23,7 @@ lazy val commonSettings = Seq(
     "-unchecked",
     "-language:implicitConversions",
     "-language:postfixOps",
+    //"-Ypartial-unification",
     "-Ybackend-parallelism",
     "4",
   ),
@@ -32,7 +33,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
-
+  libraryDependencies += "org.typelevel" %% "cats-core" % "2.6.0",
   libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
 
   libraryDependencies += "joda-time" % "joda-time" % "2.10.1",

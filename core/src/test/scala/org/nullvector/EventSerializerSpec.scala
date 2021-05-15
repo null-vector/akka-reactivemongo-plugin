@@ -29,7 +29,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "dserialize an Event" in {
-    val eventualEvent = serializer.deserialize("AnEvent", BSONDocument("string" -> "Charlie"), "1", "1").map(_.asInstanceOf[AnEvent])
+    val eventualEvent = serializer.deserialize("AnEvent", BSONDocument("string" -> "Charlie"), "1", 1).map(_.payload.asInstanceOf[AnEvent])
     val anEvent = Await.result(eventualEvent, 1.second)
 
     anEvent.string shouldBe ("Charlie")
@@ -44,7 +44,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "dserialize an AkkaEvent" in {
-    val eventualEvent = serializer.deserialize("SomeLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", "1").map(_.asInstanceOf[SomeLegacyEvent])
+    val eventualEvent = serializer.deserialize("SomeLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", 1)
+      .map(_.payload.asInstanceOf[SomeLegacyEvent])
     val someLegacyEvent = Await.result(eventualEvent, 1.second)
 
     someLegacyEvent.firstName shouldBe ("Charlie")
@@ -52,7 +53,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "dserialize other AkkaEvent" in {
-    val eventualEvent = serializer.deserialize("OtherLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", "1").map(_.asInstanceOf[OtherLegacyEvent])
+    val eventualEvent = serializer.deserialize("OtherLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", 1)
+      .map(_.payload.asInstanceOf[OtherLegacyEvent])
     val someLegacyEvent = Await.result(eventualEvent, 1.second)
 
     someLegacyEvent.firstName shouldBe ("Charlie")
@@ -68,7 +70,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   it should "try to dserialize with non registered adapter" in {
-    val eventualEvent = serializer.deserialize("NonRegisteredEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", "1").map(_.asInstanceOf[OtherLegacyEvent])
+    val eventualEvent = serializer.deserialize("NonRegisteredEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", 1).map(_.asInstanceOf[OtherLegacyEvent])
     an[Exception] should be thrownBy Await.result(eventualEvent, 1.second)
   }
 

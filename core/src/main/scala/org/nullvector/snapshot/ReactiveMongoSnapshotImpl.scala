@@ -45,7 +45,7 @@ class ReactiveMongoSnapshotImpl(
         val deserializePayload = document.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) =>
             val sequenceNr = document.getAsOpt[Long](Fields.sequence).get
-            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr.toString)
+            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr).map(_.payload)
           case None => Future.successful(payloadDoc)
         }
 

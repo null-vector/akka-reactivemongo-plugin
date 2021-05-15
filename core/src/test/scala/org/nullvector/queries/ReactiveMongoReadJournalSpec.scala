@@ -155,7 +155,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = jIdx))
         ))
     }.run(), 14.seconds)
-    Thread.sleep(500)
+    Thread.sleep(1000)
     val eventualDone = readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
     val envelopes = Await.result(eventualDone, 14.seconds)
 
