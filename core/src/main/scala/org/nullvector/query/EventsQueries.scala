@@ -1,6 +1,7 @@
 package org.nullvector.query
 
 import akka.NotUsed
+import akka.persistence.PersistentRepr
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.ActorAttributes
 import akka.stream.scaladsl.{Flow, Source}
@@ -12,6 +13,7 @@ import reactivemongo.api.bson._
 import reactivemongo.api.bson.collection.BSONCollection
 
 import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 trait EventsQueries
   extends akka.persistence.query.scaladsl.EventsByTagQuery
@@ -31,10 +33,25 @@ trait EventsQueries
     }
   }
 
-  implicit val manifestBasedSerialization: (BSONDocument, BSONDocument) => Future[Any] = (event: BSONDocument, rawPayload: BSONDocument) => {
-    val manifest = event.getAsOpt[String](Fields.manifest).get
-    val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
-    serializer.deserialize(manifest, rawPayload, persistenceId, 0).map(_.payload)
+  private def docsToEnvelop(docs: Seq[BSONDocument]): Future[Seq[EventEnvelope]] = {
+    val (offsets, reps) = docs.map { doc =>
+      val event = doc.getAsOpt[BSONDocument](Fields.events).get
+      val offset = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
+      val payload = event.getAsOpt[BSONDocument](Fields.payload).get
+      val manifest = event.getAsOpt[String](Fields.manifest).get
+      val sequence = event.getAsOpt[Long](Fields.sequence).get
+      val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
+      offset -> PersistentRepr(payload, sequence, persistenceId, manifest)
+    }.unzip
+    serializer.deserializeAll(reps)
+      .map(offsets zip _)
+      .map(_.map(offsetRep => EventEnvelope(
+        offsetRep._1,
+        offsetRep._2.persistenceId,
+        offsetRep._2.sequenceNr,
+        offsetRep._2.payload, offsetRep._1.id.time
+      )))
+
   }
 
   override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
@@ -55,7 +72,7 @@ trait EventsQueries
       .future(rxDriver.journalCollection(persistenceId))
       .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .flatMapConcat(coll => buildFindEventsByIdQuery(coll, persistenceId, fromSequenceNr, toSequenceNr))
-      .via(document2Envelope(manifestBasedSerialization))
+      .via(docs2EnvelopeFlow)
   }
 
   override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
@@ -90,32 +107,20 @@ trait EventsQueries
     eventsByTagQuery(tags, offset)
   }
 
-  private def eventsByTagQuery(tags: Seq[String], offset: Offset)(implicit serializableMethod: (BSONDocument, BSONDocument) => Future[Any]): Source[EventEnvelope, NotUsed] = {
+  def eventsByTagQuery(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
     Source.future(rxDriver.journals())
       .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .mapConcat(identity)
       .splitWhen(_ => true)
       .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
       .mergeSubstreamsWithParallelism(amountOfCores)
-      .via(document2Envelope(serializableMethod))
+      .via(docs2EnvelopeFlow)
   }
 
-  private def document2Envelope(serializationMethod: (BSONDocument, BSONDocument) => Future[Any]) = Flow[BSONDocument]
-    .mapAsync(amountOfCores) { doc =>
-      val event: BSONDocument = doc.getAsOpt[BSONDocument](Fields.events).get
-      val rawPayload: BSONDocument = event.getAsOpt[BSONDocument](Fields.payload).get
-      serializationMethod(event, rawPayload)
-        .map(payload => {
-          val offset = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
-          EventEnvelope(
-            offset,
-            event.getAsOpt[String](Fields.persistenceId).get,
-            event.getAsOpt[Long](Fields.sequence).get,
-            payload,
-            offset.id.time
-          )
-        })
-    }
+  private def docs2EnvelopeFlow = Flow[BSONDocument]
+    .groupedWithin(21, 1.millis)
+    .mapAsync(amountOfCores)(docsToEnvelop)
+    .mapConcat(identity)
 
   private def buildFindEventsByTagsQuery(collection: BSONCollection, offset: Offset, tags: Seq[String]) = {
     def query(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))

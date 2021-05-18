@@ -30,7 +30,9 @@ class ReactiveMongoSnapshotSpec() extends TestKitBase with ImplicitSender
 
   Collections.dropAll(driver)
 
+
   "ReactiveMongoSnapshotImpl" should {
+
 
     "write and load" in {
       val pId = s"TestAggregate-read_write"
