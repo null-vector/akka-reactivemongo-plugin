@@ -1,7 +1,7 @@
 lazy val scala213 = "2.13.6"
-lazy val scala300 = "3.0.0-M2"
+lazy val scala300 = "3.0.0"
 lazy val supportedScalaVersions = List(scala213)
-lazy val akkaVersion = "2.6.13"
+lazy val akkaVersion = "2.6.14"
 lazy val rxmongoVersion = "1.0.3"
 
 publishArtifact := false
@@ -12,7 +12,7 @@ publishLocal := {}
 lazy val commonSettings = Seq(
   name := "akka-reactivemongo-plugin",
   organization := "null-vector",
-  version := s"1.4.11-SNAPSHOT",
+  version := s"1.4.11",
   scalaVersion := scala213,
   crossScalaVersions := supportedScalaVersions,
   scalacOptions := Seq(
