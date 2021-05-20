@@ -35,7 +35,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     anEvent.string shouldBe ("Charlie")
   }
 
-  it should "serialize an AkkaEvent" in {
+  ignore should "serialize an AkkaEvent" in {
     val eventualTuple = serializer.serialize(PersistentRepr(SomeLegacyEvent("John", "Coltrane"), manifest = "SomeLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
@@ -43,7 +43,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")
   }
 
-  it should "dserialize an AkkaEvent" in {
+  ignore should "dserialize an AkkaEvent" in {
     val eventualEvent = serializer.deserialize("SomeLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", 1)
       .map(_.payload.asInstanceOf[SomeLegacyEvent])
     val someLegacyEvent = Await.result(eventualEvent, 1.second)
@@ -52,7 +52,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     someLegacyEvent.lastName shouldBe ("Parker")
   }
 
-  it should "dserialize other AkkaEvent" in {
+  ignore should "dserialize other AkkaEvent" in {
     val eventualEvent = serializer.deserialize("OtherLegacyEvent", BSONDocument("firstName" -> "Charlie", "lastName" -> "Parker"), "1", 1)
       .map(_.payload.asInstanceOf[OtherLegacyEvent])
     val someLegacyEvent = Await.result(eventualEvent, 1.second)
@@ -61,7 +61,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     someLegacyEvent.lastName shouldBe ("Parker")
   }
 
-  it should "serialize other AkkaEvent" in {
+  ignore should "serialize other AkkaEvent" in {
     val eventualTuple = serializer.serialize(PersistentRepr(OtherLegacyEvent("John", "Coltrane"), manifest = "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
@@ -74,7 +74,7 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
     an[Exception] should be thrownBy Await.result(eventualEvent, 1.second)
   }
 
-  it should "serialize other AkkaEvent with Tag" in {
+  ignore should "serialize other AkkaEvent with Tag" in {
     val eventualTuple = serializer.serialize(PersistentRepr(Tagged(OtherLegacyEvent("John", "Coltrane"), Set("tag")), manifest = "OtherLegacyEvent"))
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
     document.getAsOpt[String]("firstName").get shouldBe ("John")
