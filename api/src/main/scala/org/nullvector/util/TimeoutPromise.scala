@@ -12,7 +12,9 @@ object TimeoutPromise {
     val thePromise = Promise[T]
     val timerTask = new TimerTask() {
       def run() = {
-        if (!thePromise.isCompleted) thePromise.tryFailure(PromiseTimeoutException(onTimeoutMessage()))
+        if (!thePromise.isCompleted) {
+          thePromise.tryFailure(PromiseTimeoutException(onTimeoutMessage()))
+        }
       }
     }
     timer.schedule(timerTask, timeout.toMillis)

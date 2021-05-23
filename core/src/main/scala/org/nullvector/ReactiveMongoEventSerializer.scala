@@ -1,6 +1,7 @@
 package org.nullvector
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, OneForOneStrategy, Props, SupervisorStrategy}
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.actor.{Actor, ActorLogging, ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Kill, OneForOneStrategy, Props, SupervisorStrategy}
 import akka.persistence._
 import akka.persistence.journal.{EventsSeq, SingleEventSeq, Tagged, EventAdapter => AkkaEventAdapter}
 import akka.routing.BalancingPool
@@ -22,6 +23,10 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 }
 
 class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extension {
+
+  system.toTyped
+
+
   private val adaptersByType: mutable.HashMap[AdapterKey, Any] = mutable.HashMap()
   private val adaptersByManifest: mutable.HashMap[String, Any] = mutable.HashMap()
   private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
@@ -32,7 +37,7 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
       restarterSupervisorProps(Props(new WorkerSerializer).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)))
     system.systemActorOf(restarterSupervisorProps(poolProps), "ReactiveMongoEventWorkerPool")
   }
-  private val serializerRef: ActorRef = system.systemActorOf(
+  private val registryRef: ActorRef = system.systemActorOf(
     restarterSupervisorProps(Props(new EventAdapterRegistry())), "ReactiveMongoEventRegistry")
 
   private val defaultSerializationTimeout: FiniteDuration = 15.seconds
@@ -63,7 +68,8 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
       case Fields.manifest_doc => Future.successful(PersistentRepr(event, sequenceNumber, persistenceId, manifest))
       case _ =>
         val promise = TimeoutPromise[PersistentRepr](defaultSerializationTimeout,
-          () => s"Deserialization of event with sequence $sequenceNumber of ${persistenceId} has timed out.")
+          () => s"Deserialization of event with sequence $sequenceNumber of $manifest has timed out.",
+        )
         workerPoolRef ! Deserialize(manifest, event, persistenceId, sequenceNumber, promise)
         promise.future
     }
@@ -71,7 +77,8 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   def deserializeAll(from: Seq[PersistentRepr]): Future[Seq[PersistentRepr]] = {
     val promise = TimeoutPromise[Seq[PersistentRepr]](defaultSerializationTimeout,
-      () => s"Deserialization of events of ${from.map(_.persistenceId).mkString(",")} has timed out.")
+      () => s"Deserialization of events of ${from.map(_.manifest).mkString(",")} has timed out.",
+    )
     workerPoolRef ! DeserializeAll(from, promise)
     promise.future
   }
@@ -83,13 +90,13 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
   def addEventAdapters(eventAdapter: Seq[EventAdapter[_]]): Unit = {
     val promisedDone = Promise[Unit]
-    serializerRef ! RegisterAdapter(eventAdapter, promisedDone)
+    registryRef ! RegisterAdapter(eventAdapter, promisedDone)
     Await.result(promisedDone.future, 15.seconds)
   }
 
   @deprecated
   def addAkkaEventAdapter(eventType: Class[_], akkaEventAdapter: AkkaEventAdapter): Unit =
-    serializerRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
+    registryRef ! RegisterAkkaAdapter(AdapterKey(eventType), akkaEventAdapter)
 
   @deprecated
   def loadAkkaAdaptersFrom(path: String): Unit = {
@@ -143,7 +150,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
 
         adaptersByType.get(AdapterKey(realPayload.getClass)) match {
           case Some(adapter) =>
-            log.debug("Serializing event with {}", adapter)
             adapter match {
               case e: EventAdapter[_] => (e.toBson(realPayload), e.manifest, e.readTags(realPayload))
               case e: AkkaEventAdapter =>
@@ -175,7 +181,6 @@ class ReactiveMongoEventSerializer(system: ExtendedActorSystem) extends Extensio
       else
         adaptersByManifest.get(persistentRepr.manifest) match {
           case Some(adapter) =>
-            log.debug("Deserializing event with {}", adapter)
             adapter match {
               case eventAdapter: EventAdapter[_] =>
                 Success(persistentRepr.withPayload(eventAdapter.bsonToPayload(persistentRepr.payload.asInstanceOf[BSONDocument])))
