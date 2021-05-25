@@ -1,11 +1,13 @@
 package org.nullvector.journal
 
 import akka.actor.ActorSystem
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.persistence.{AtomicWrite, PersistentRepr, SnapshotMetadata}
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.nullvector.EventAdapter
 import org.nullvector.snapshot.ReactiveMongoSnapshotImpl
-import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson._
 
@@ -25,10 +27,8 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
 
   private val reactiveMongoSnapshotImpl: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(conf, system)
 
-  private val serializer = ReactiveMongoEventSerializer(system)
-  serializer.addEventAdapter(new ListAdapter())
-  serializer.addEventAdapter(new StringAdapter())
-  serializer.addEventAdapter(new SomeAdapter())
+  private val serializer = ReactiveMongoEventSerializer(system.toTyped)
+  serializer.addAdapters(Seq(new ListAdapter(), new StringAdapter(), new SomeAdapter()))
 
   "ReactiveMongoJournalImpl" should {
 
@@ -58,19 +58,14 @@ class ReactiveMongoJournalSpec() extends TestKit(ActorSystem("ReactiveMongoPlugi
     }
 
     "write BsonDocs" in {
-
       val pId = s"SomeCollection-bson_${Random.nextLong().abs}"
-
       val events = immutable.Seq(
         AtomicWrite(PersistentRepr(BSONDocument("name" -> "John Coltrane"), persistenceId = pId, sequenceNr = 55)),
       )
-
       val eventualTriedUnits = asyncWriteJournalOps.asyncWriteMessages(events)
       Await.result(eventualTriedUnits, 1.second)
-
       val reps = ArrayBuffer[PersistentRepr]()
       Await.result(asyncWriteJournalOps.asyncReplayMessages(pId, 0, 1000, 10000)(rep => reps += rep), 7.seconds)
-
       reps.head.payload.asInstanceOf[BSONDocument].getAsOpt[String]("name").get shouldBe "John Coltrane"
       reps.head.sequenceNr shouldBe 55
     }

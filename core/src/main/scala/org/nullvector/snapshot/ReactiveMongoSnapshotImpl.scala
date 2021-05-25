@@ -44,7 +44,7 @@ class ReactiveMongoSnapshotImpl(
         val deserializePayload = document.getAsOpt[String](Fields.manifest) match {
           case Some(manifest) =>
             val sequenceNr = document.getAsOpt[Long](Fields.sequence).get
-            serializer.deserialize(manifest, payloadDoc, persistenceId, sequenceNr).map(_.payload)
+            serializer.deserialize(Seq(PersistentRepr(payloadDoc, sequenceNr, persistenceId, manifest))).map(_.head.payload)
           case None => Future.successful(payloadDoc)
         }
 
@@ -81,7 +81,7 @@ class ReactiveMongoSnapshotImpl(
           insertDoc(coll, metadata, payload, None)
         case _ =>
           for {
-            (rep, _) <- serializer.serialize(PersistentRepr(snapshot))
+            (rep, _) <- serializer.serialize(Seq(PersistentRepr(snapshot))).map(_.head)
             tryed <- insertDoc(coll, metadata, rep.payload.asInstanceOf[BSONDocument], Option(rep.manifest))
           } yield tryed
       }).transform(_.flatMap(identity))

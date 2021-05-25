@@ -2,19 +2,20 @@ package org.nullvector.journal
 
 import akka.Done
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.{ExtendedActorSystem, Kill, PoisonPill, Props, typed}
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.actor.{ExtendedActorSystem, Kill, Props, typed}
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import akka.stream.scaladsl.{Sink, Source}
 import akka.testkit.{ImplicitSender, TestKitBase}
-import com.typesafe.config.ConfigFactory
-import org.nullvector.{EventAdapter, EventAdapterFactory, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import org.nullvector.typed.ReactiveMongoEventSerializer
+import org.nullvector.{EventAdapter, EventAdapterFactory, ReactiveMongoDriver}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
 
 import scala.collection.immutable._
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Random
 
 class PersistentActorSpec() extends TestKitBase with ImplicitSender
@@ -22,12 +23,12 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender
 
   override lazy implicit val system = typed.ActorSystem(Behaviors.empty, "ReactiveMongoPlugin").classicSystem
 
-  val serializer = ReactiveMongoEventSerializer(system)
+  val serializer = ReactiveMongoEventSerializer(system.toTyped)
   val autoRestartFactory = new AutoRestartFactory(system.asInstanceOf[ExtendedActorSystem])
   val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
   implicit val dispatcher: ExecutionContextExecutor = system.dispatcher
-  serializer.addEventAdapter(new AnEventEventAdapter)
-  serializer.addEventAdapter(new AFaultyEventAdapter)
+  serializer.addAdapter(new AnEventEventAdapter)
+  serializer.addAdapter(new AFaultyEventAdapter)
 
   def randomId: Long = Random.nextLong().abs
 

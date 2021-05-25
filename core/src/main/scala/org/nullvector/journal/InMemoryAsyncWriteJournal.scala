@@ -5,7 +5,8 @@ import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import org.nullvector.PersistInMemory.EventEntry
-import org.nullvector.{PersistInMemory, ReactiveMongoEventSerializer}
+import org.nullvector.typed.ReactiveMongoEventSerializer
+import org.nullvector.{PersistInMemory}
 import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.immutable
@@ -18,13 +19,13 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
 
   private implicit val ec = system.dispatcher
   private implicit val materializer: Materializer = Materializer.matFromSystem(system)
-  private val eventSerializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system)
+  private val eventSerializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system.toTyped)
   private val persistInMemory: PersistInMemory = PersistInMemory(system.toTyped)
 
   def asyncWriteMessages(messages: immutable.Seq[AtomicWrite]): Future[immutable.Seq[Try[Unit]]] = {
     Source(messages).mapAsync(1)(atomic =>
-      Source(atomic.payload)
-        .mapAsync(1)(eventSerializer.serialize)
+      Source.future(eventSerializer.serialize(atomic.payload))
+        .mapConcat(identity)
         .map(slized => persistentRepr2EventEntry _ tupled slized)
         .runWith(Sink.seq)
         .flatMap(events => persistInMemory.addEvents(atomic.persistenceId, events).transform(tried => Try(tried.map(_ => ()))))
@@ -39,17 +40,14 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
 
   def asyncReplayMessages(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long, max: Long)
                          (recoveryCallback: PersistentRepr => Unit): Future[Unit] = {
-    Source.future(persistInMemory.eventsOf(persistenceId))
-      .mapConcat(identity)
-      .map(_.eventEntry)
-      .filter(entry => entry.sequence >= fromSequenceNr && entry.sequence <= toSequenceNr)
-      .mapAsync(Runtime.getRuntime.availableProcessors())(
-        entry => eventSerializer
-          .deserialize(entry.manifest, entry.event, persistenceId, entry.sequence)
-          .map(payload => entry -> payload.payload))
-      .map(entryAndPayload => eventEntry2PersistentRepr(persistenceId) _ tupled entryAndPayload)
-      .runForeach(recoveryCallback)
-      .map(_ => ())
+    persistInMemory.eventsOf(persistenceId)
+      .map(_
+        .map(_.eventEntry)
+        .filter(entry => entry.sequence >= fromSequenceNr && entry.sequence <= toSequenceNr)
+        .map(entry =>PersistentRepr(entry.event, entry.sequence,persistenceId, entry.manifest))
+      )
+      .flatMap(eventSerializer.deserialize)
+      .map(_.foreach(recoveryCallback))
   }
 
   def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
@@ -59,9 +57,4 @@ class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJourn
   def persistentRepr2EventEntry(rep: PersistentRepr, tags: Set[String]): EventEntry = {
     EventEntry(rep.persistenceId, rep.sequenceNr, rep.manifest, rep.payload.asInstanceOf[BSONDocument], tags)
   }
-
-  def eventEntry2PersistentRepr(persistenceId: String)(entry: EventEntry, payload: Any): PersistentRepr = {
-    PersistentRepr(payload, entry.sequence, persistenceId, entry.manifest)
-  }
-
 }

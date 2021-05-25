@@ -1,15 +1,16 @@
 package org.nullvector
 
 import java.util.concurrent.atomic.AtomicInteger
-
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, BehaviorTestKit, TestInbox}
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.actor.typed.{ActorSystem => TypedActorSystem}
 import akka.actor.{ActorSystem, PoisonPill, Props}
 import akka.persistence._
 import com.typesafe.config.ConfigFactory
 import org.nullvector.journal.InMemoryAsyncWriteJournal
 import org.nullvector.snapshot.InMemorySnapshotStore
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.scalatest.{FlatSpec, Matchers}
 import reactivemongo.api.bson.BSONDocument
 
@@ -26,7 +27,7 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
   implicit val actorSystem: TypedActorSystem[Nothing] = testKit.system
   implicit val ec: ExecutionContextExecutor = actorSystem.executionContext
 
-  ReactiveMongoEventSerializer(actorSystem).addEventAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
+  ReactiveMongoEventSerializer(actorSystem).addAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
 
   it should " add event in Memory" in {
     val persistInMemoryBehavior = BehaviorTestKit(PersistInMemory.behavior())
@@ -230,7 +231,7 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     ) withFallback ConfigFactory.load()
 
     val inMemoryAS = ActorSystem("InMemoryAS", config)
-    ReactiveMongoEventSerializer(inMemoryAS).addEventAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
+    ReactiveMongoEventSerializer(inMemoryAS.toTyped).addAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
     val pId = "InMemory-1"
     val persistorRef1 = inMemoryAS.actorOf(persistorProps(pId))
 
@@ -255,8 +256,8 @@ class PersistInMemorySpec extends FlatSpec with Matchers {
     ) withFallback ConfigFactory.load()
 
     val inMemoryAS = ActorSystem("InMemoryAS", config)
-    ReactiveMongoEventSerializer(inMemoryAS).addEventAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
-    ReactiveMongoEventSerializer(inMemoryAS).addEventAdapter(EventAdapterFactory.adapt[Status]("StatusSnapshot"))
+    ReactiveMongoEventSerializer(inMemoryAS.toTyped).addAdapter(EventAdapterFactory.adapt[StatusEvent]("MyEvent"))
+    ReactiveMongoEventSerializer(inMemoryAS.toTyped).addAdapter(EventAdapterFactory.adapt[Status]("StatusSnapshot"))
     val pId = "InMemory-1"
     val persistorRef1 = inMemoryAS.actorOf(persistorProps(pId))
 

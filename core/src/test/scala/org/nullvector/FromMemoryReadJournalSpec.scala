@@ -1,7 +1,6 @@
 package org.nullvector
 
 import java.util.concurrent.atomic.AtomicInteger
-
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.{ActorSystem => TypedActorSystem}
@@ -11,6 +10,7 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.typesafe.config.ConfigFactory
 import org.nullvector.PersistInMemory.EventEntry
 import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.scalatest.{FlatSpec, Matchers}
 import reactivemongo.api.bson.BSONDocument
 
@@ -33,7 +33,7 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
   implicit val ec: ExecutionContextExecutor = actorSystem.executionContext
 
   private val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(actorSystem)
-  serializer.addEventAdapter(EventAdapterFactory.adapt[AnEvent]("AnEvent", (event: AnEvent) => Set(event.tag)))
+  serializer.addAdapter(EventAdapterFactory.adapt[AnEvent]("AnEvent", (event: AnEvent) => Set(event.tag)))
   private val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(actorSystem).scaladslReadJournal
   private val memory: PersistInMemory = PersistInMemory(actorSystem)
 

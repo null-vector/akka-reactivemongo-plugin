@@ -43,7 +43,7 @@ trait ReactiveMongoAsyncReplay extends LoggerPerClassAware {
           bsonEvent.getAsOpt[String](Fields.manifest).get
         )
       )
-      serializer.deserializeAll(persistenceReps)
+      serializer.deserialize(persistenceReps)
     }
 
     for {

@@ -43,7 +43,7 @@ trait EventsQueries
       val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
       offset -> PersistentRepr(payload, sequence, persistenceId, manifest)
     }.unzip
-    serializer.deserializeAll(reps)
+    serializer.deserialize(reps)
       .map(offsets zip _)
       .map(_.map(offsetRep => EventEnvelope(
         offsetRep._1,

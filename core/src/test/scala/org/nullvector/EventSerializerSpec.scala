@@ -1,10 +1,12 @@
 package org.nullvector
 
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.actor.{ActorRef, ActorSystem, ExtendedActorSystem}
 import akka.persistence.PersistentRepr
 import akka.persistence.journal.{EventSeq, Tagged}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.nullvector.EventSerializerSpec.{AnEvent, AnEventEventAdapter, OtherLegacyEvent, SomeLegacyEvent}
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler, Macros}
 
@@ -17,12 +19,12 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
 
   import system.dispatcher
 
-  private val serializer = ReactiveMongoEventSerializer(system)
-  serializer.addEventAdapter(new AnEventEventAdapter)
-  serializer.loadAkkaAdaptersFrom("custom.akka.persistent.adapters")
+  private val serializer = ReactiveMongoEventSerializer(system.toTyped)
+  serializer.addAdapters(Seq(new AnEventEventAdapter))
+//  serializer.loadAkkaAdaptersFrom("custom.akka.persistent.adapters")
 
   "EventSerializer" should "serialize an Event" in {
-    val eventualTuple = serializer.serialize(PersistentRepr(AnEvent("Hello World"), manifest = "AnEvent"))
+    val eventualTuple = serializer.serialize(Seq(PersistentRepr(AnEvent("Hello World"), manifest = "AnEvent"))).map(_.head)
     val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
 
     document.getAsOpt[String]("string").get shouldBe ("Hello World")
@@ -36,8 +38,8 @@ class EventSerializerSpec() extends TestKit(ActorSystem("ReactiveMongoPlugin")) 
   }
 
   ignore should "serialize an AkkaEvent" in {
-    val eventualTuple = serializer.serialize(PersistentRepr(SomeLegacyEvent("John", "Coltrane"), manifest = "SomeLegacyEvent"))
-    val document = Await.result(eventualTuple, 1.second)._1.payload.asInstanceOf[BSONDocument]
+    val eventualTuple = serializer.serialize(Seq(PersistentRepr(SomeLegacyEvent("John", "Coltrane"), manifest = "SomeLegacyEvent")))
+    val document = Await.result(eventualTuple.map(_.head), 1.second)._1.payload.asInstanceOf[BSONDocument]
 
     document.getAsOpt[String]("firstName").get shouldBe ("John")
     document.getAsOpt[String]("lastName").get shouldBe ("Coltrane")

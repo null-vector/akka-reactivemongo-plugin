@@ -1,13 +1,14 @@
 package org.nullvector.query
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ExtendedActorSystem
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.persistence.query.{NoOffset, Offset}
-import akka.stream.{ActorMaterializer, Materializer}
-import org.nullvector.{ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import akka.stream.Materializer
+import org.nullvector.ReactiveMongoDriver
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import reactivemongo.api.bson._
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -16,7 +17,7 @@ class ReactiveMongoScalaReadJournalImpl(system: ExtendedActorSystem)
     with EventsQueries
     with PersistenceIdsQueries with ReactiveMongoScalaReadJournal {
 
-  protected lazy val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system)
+  protected lazy val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(system.toTyped)
   protected lazy val rxDriver: ReactiveMongoDriver = ReactiveMongoDriver(system)
   protected implicit lazy val dispatcher: ExecutionContext = system.dispatchers.lookup("akka-persistence-reactivemongo-dispatcher")
   protected implicit lazy val materializer: Materializer = Materializer.matFromSystem(system)
@@ -30,6 +31,4 @@ class ReactiveMongoScalaReadJournalImpl(system: ExtendedActorSystem)
       case NoOffset | _ => BSONDocument.empty
     }
   }
-
-
 }

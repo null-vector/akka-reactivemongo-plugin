@@ -2,6 +2,7 @@ package org.nullvector.queries
 
 import akka.actor.typed
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import akka.persistence.query.{EventEnvelope, NoOffset}
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.scaladsl.{Sink, Source}
@@ -10,7 +11,8 @@ import akka.testkit.{ImplicitSender, TestKitBase}
 import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.journal.ReactiveMongoJournalImpl
 import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
-import org.nullvector.{EventAdapter, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import org.nullvector.typed.ReactiveMongoEventSerializer
+import org.nullvector.{EventAdapter, ReactiveMongoDriver}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.Collections._
@@ -36,8 +38,8 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
 
   implicit val materializer: Materializer = Materializer.matFromSystem(system)
   val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
-  private val serializer = ReactiveMongoEventSerializer(system)
-  serializer.addEventAdapter(new SomeEventAdapter())
+  private val serializer = ReactiveMongoEventSerializer(system.toTyped)
+  serializer.addAdapter(new SomeEventAdapter())
 
   override def beforeEach() = {
     dropAll(rxDriver)

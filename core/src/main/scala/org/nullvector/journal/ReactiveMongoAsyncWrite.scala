@@ -14,11 +14,9 @@ trait ReactiveMongoAsyncWrite {
     for {
       collection <- rxDriver.journalCollection(messages.head.persistenceId)
       atomicDocs <- Future.traverse(messages) { atomic =>
-        Future.traverse(atomic.payload)(rep =>
-          serializer.serialize(rep).map {
-            case (serializedRep, tags) => rep2doc(serializedRep, tags) -> tags
-          }
-        ).map { docs =>
+        serializer.serialize(atomic.payload).map(_.map {
+          case (serializedRep, tags) => rep2doc(serializedRep, tags) -> tags
+        }).map { docs =>
           BSONDocument(
             Fields.persistenceId -> atomic.persistenceId,
             Fields.from_sn -> atomic.lowestSequenceNr,

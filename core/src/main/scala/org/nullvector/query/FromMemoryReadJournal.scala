@@ -2,11 +2,13 @@ package org.nullvector.query
 
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
+import akka.persistence.PersistentRepr
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
+import org.nullvector.PersistInMemory
 import org.nullvector.PersistInMemory.EventWithOffset
-import org.nullvector.{PersistInMemory, ReactiveMongoEventSerializer}
+import org.nullvector.typed.ReactiveMongoEventSerializer
 
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -71,15 +73,15 @@ class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoSc
       Future.successful(eventEnvelope(entry.event, event.offset))
     else
       serializer
-        .deserialize(entry.manifest, entry.event, entry.persistenceId, entry.sequence)
-        .map(deserialized => eventEnvelope(deserialized.payload, event.offset))
+        .deserialize(Seq(PersistentRepr(entry.event,entry.sequence,entry.persistenceId, entry.manifest)))
+        .map(deserialized => eventEnvelope(deserialized.head.payload, event.offset))
   }
 
   private def sourceEvents(tags: Seq[String], offset: Offset, keepRaw: Boolean) = {
     Source
       .futureSource(memory.allEvents(offset))
       .filter(_.eventEntry.tags.exists(tags.contains))
-      .mapAsync(15)(toEventEnvelope(keepRaw)(_))
+      .mapAsync(Runtime.getRuntime.availableProcessors())(toEventEnvelope(keepRaw)(_))
       .mapMaterializedValue(_ => NotUsed)
   }
 

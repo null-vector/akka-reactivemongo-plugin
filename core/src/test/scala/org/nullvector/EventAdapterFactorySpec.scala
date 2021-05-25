@@ -1,10 +1,12 @@
 package org.nullvector
 
 import akka.actor.ActorSystem
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
 import org.nullvector.domain.Money.Currency
 import org.nullvector.domain._
 import org.nullvector.domain.category.MainCategory.{BranchCategory2, RootCategory2, TerminalCategory2}
-import org.nullvector.domain.planets.{Earth, Jupiter, ListPlanets, Mars, PlanetDistanceBetweenEarth, SolarPlanet}
+import org.nullvector.domain.planets._
+import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.scalatest.Matchers._
 import org.scalatest._
 import reactivemongo.api.bson.MacroConfiguration.Aux
@@ -36,7 +38,7 @@ class EventAdapterFactorySpec extends FlatSpec {
 
     eventAdapter.bsonToPayload(document) shouldBe anInstance
 
-    ReactiveMongoEventSerializer(ActorSystem()).addEventAdapter(eventAdapter)
+    ReactiveMongoEventSerializer(ActorSystem().toTyped).addAdapters(Seq(eventAdapter))
   }
 
   it should "override Reader Mapping" in {

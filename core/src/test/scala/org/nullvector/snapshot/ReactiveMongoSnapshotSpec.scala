@@ -1,16 +1,17 @@
 package org.nullvector.snapshot
 
-import java.util.Date
-import akka.actor.{ActorSystem, typed}
+import akka.actor.typed
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.{SnapshotMetadata, SnapshotSelectionCriteria}
-import akka.testkit.{ImplicitSender, TestKit, TestKitBase}
-import com.typesafe.config.{Config, ConfigFactory}
-import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver, ReactiveMongoEventSerializer}
+import akka.testkit.{ImplicitSender, TestKitBase}
+import com.typesafe.config.ConfigFactory
+import org.nullvector.typed.ReactiveMongoEventSerializer
+import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import reactivemongo.api.bson.{BSONDocument, Macros}
 import util.Collections
 
+import java.util.Date
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -23,8 +24,8 @@ class ReactiveMongoSnapshotSpec() extends TestKitBase with ImplicitSender
 
   val snapshotter: ReactiveMongoSnapshotImpl = new ReactiveMongoSnapshotImpl(ConfigFactory.load(), system)
 
-  private val serializer = ReactiveMongoEventSerializer(system)
-  serializer.addEventAdapter(new StateAdapter)
+  private val serializer = ReactiveMongoEventSerializer(typedAs)
+  serializer.addAdapter(new StateAdapter)
 
   private val driver = ReactiveMongoDriver(system)
 
