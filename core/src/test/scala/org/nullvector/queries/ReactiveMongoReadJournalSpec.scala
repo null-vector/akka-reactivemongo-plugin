@@ -141,7 +141,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
     }.run(), 14.seconds)
     Thread.sleep(1500)
     val offset = ObjectIdOffset.newOffset()
-    Thread.sleep(500)
+    Thread.sleep(1000)
     Await.ready(Source(1 to 10).mapAsync(amountOfCores) {
       idx =>
         val pId = s"${prefixReadColl}_$idx-${Random.nextLong().abs}"
@@ -244,14 +244,14 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
     }.runWith(Sink.ignore), 14.seconds)
-    Thread.sleep(700)
+    Thread.sleep(1000)
     Await.ready(Source(11 to 20).mapAsync(amountOfCores) {
       idx =>
         reactiveMongoJournalImpl.asyncWriteMessages(Seq(
           AtomicWrite(PersistentRepr(payload = SomeEvent(s"lechuga_$idx", 23.45), persistenceId = pId, sequenceNr = idx))
         ))
     }.runWith(Sink.ignore), 14.seconds)
-    Thread.sleep(800)
+    Thread.sleep(1000)
     envelopes.peek().persistenceId shouldBe pId
     envelopes.size shouldBe 20
   }
