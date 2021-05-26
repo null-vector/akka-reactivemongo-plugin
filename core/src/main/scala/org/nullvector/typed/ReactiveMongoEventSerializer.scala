@@ -80,22 +80,13 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
     }
 
 
-    def serializeWith(adapter: EventAdapter[_], persistentRepr: PersistentRepr): Try[(PersistentRepr, Set[String])] = {
-      Try {
-        (persistentRepr.payload match {
-          case _: BSONDocument => persistentRepr.withManifest(Fields.manifest_doc)
-          case payload => persistentRepr.withPayload(adapter.toBson(payload)).withManifest(adapter.manifest)
-        }) -> adapter.readTags(persistentRepr.payload)
-      }
-    }
+    def serializeWith(adapter: EventAdapter[_], persistentRepr: PersistentRepr): Try[(PersistentRepr, Set[String])] =
+      Try(persistentRepr
+        .withPayload(adapter.toBson(persistentRepr.payload))
+        .withManifest(adapter.manifest) -> adapter.readTags(persistentRepr.payload))
 
-    def deserializeWith(adapter: EventAdapter[_], persistentRepr: PersistentRepr): Try[PersistentRepr] = {
-      if (persistentRepr.manifest == Fields.manifest_doc) Success(persistentRepr)
-      else Try {
-        val deserializedPayload = adapter.bsonToPayload(persistentRepr.payload.asInstanceOf[BSONDocument])
-        persistentRepr.withPayload(deserializedPayload)
-      }
-    }
+    def deserializeWith(adapter: EventAdapter[_], persistentRepr: PersistentRepr): Try[PersistentRepr] =
+      Try(persistentRepr.withPayload(adapter.bsonToPayload(persistentRepr.payload.asInstanceOf[BSONDocument])))
   }
 
   class Registry() {
@@ -154,7 +145,7 @@ class ReactiveMongoEventSerializer(
   def addAdapterAsync(adapter: EventAdapter[_]): Future[Done] = addAdaptersAsync(Seq(adapter))
 
   def addAdapters(adapters: Seq[EventAdapter[_]]): Unit =
-    Await.result(addAdaptersAsync(adapters), 15.seconds)
+    Await.result(addAdaptersAsync(adapters), defaultTimeout.duration)
 
   def addAdapter(adapter: EventAdapter[_]): Unit =
     addAdapters(Seq(adapter))

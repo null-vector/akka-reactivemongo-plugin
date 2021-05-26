@@ -2,7 +2,7 @@ lazy val scala213 = "2.13.6"
 lazy val scala300 = "3.0.0"
 lazy val supportedScalaVersions = List(scala213)
 lazy val akkaVersion = "2.6.14"
-lazy val rxmongoVersion = "1.0.3"
+lazy val rxmongoVersion = "1.0.4"
 
 publishArtifact := false
 publish := {}
