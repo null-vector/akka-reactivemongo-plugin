@@ -138,11 +138,6 @@ class ReactiveMongoEventSerializer(
   private implicit val defaultTimeout: Timeout = Timeout(15.seconds)
 
   def addAdaptersAsync(adapters: Seq[EventAdapter[_]]): Future[Done] = {
-    //Load mapping classes eagerly
-    adapters.foreach{ adapter =>
-      Try(adapter.toBson(null))
-      Try(adapter.bsonToPayload(BSONDocument.empty))
-    }
     serializer
       .ask(ref => SerializerBehavior.AddAdapters(adapters, ref))
   }
