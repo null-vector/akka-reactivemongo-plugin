@@ -3,6 +3,7 @@ package org.nullvector.typed
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.persistence.PersistentRepr
+import akka.persistence.journal.Tagged
 import org.nullvector.EventAdapterFactory
 import org.nullvector.typed.ReactiveMongoEventSerializer.Registry
 import org.scalatest.Matchers.{a, convertToAnyShouldWrapper, thrownBy}
@@ -40,6 +41,15 @@ class EventAdapterSerializerSpec extends FlatSpec {
     deserialized.head._2 shouldBe Set("TwoEventTag")
   }
 
+  it should " serialize with tagger" in {
+    val serializer = ReactiveMongoEventSerializer(system)
+    val taggedEvent = Tagged(TwoEvent("TwoEventNameWithTagger"), Set("TagFromTagged"))
+    val repr = PersistentRepr(taggedEvent, manifest = "TwoManifest")
+    val future = serializer.serialize(Seq(repr))
+    val deserialized = Await.result(future, 1.second)
+    deserialized.head._1.payload shouldBe BSONDocument("name" -> "TwoEventNameWithTagger")
+    deserialized.head._2 shouldBe Set("TagFromTagged")
+  }
 
   case class OneEvent(name: String)
 

@@ -4,10 +4,11 @@ import akka.Done
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
 import akka.actor.typed._
 import akka.persistence.PersistentRepr
+import akka.persistence.journal.Tagged
 import akka.util.Timeout
 import org.nullvector.logging.LoggerPerClassAware
 import org.nullvector.typed.ReactiveMongoEventSerializer.SerializerBehavior
-import org.nullvector.{AdapterKey, EventAdapter, Fields, BsonEventAdapter, ReactiveMongoPlugin}
+import org.nullvector.{AdapterKey, BsonEventAdapter, EventAdapter, Fields, ReactiveMongoPlugin, TaggedEventAdapter}
 import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.concurrent._
@@ -110,6 +111,11 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
     def adapterByPayload(persistentRepr: PersistentRepr): Try[EventAdapter[_]] = {
       persistentRepr.payload match {
         case _: BSONDocument => Success(BsonEventAdapter)
+        case Tagged(payload, tags) =>
+          adaptersByType.get(AdapterKey(payload.getClass))
+            .fold[Try[EventAdapter[_]]](failureByPayload(persistentRepr))(adapter =>
+              Success(new TaggedEventAdapter(adapter, tags)))
+
         case payload =>
           adaptersByType.get(AdapterKey(payload.getClass))
             .fold[Try[EventAdapter[_]]](failureByPayload(persistentRepr))(Success(_))
