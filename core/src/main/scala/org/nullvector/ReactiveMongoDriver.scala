@@ -58,9 +58,10 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promise.future
   }
 
-  def journals(): Future[List[BSONCollection]] = {
+
+  def journals(collectionNames: List[String] = Nil): Future[List[BSONCollection]] = {
     val promise = Promise[List[BSONCollection]]()
-    collections ! GetJournals(promise)
+    collections ! GetJournals(promise, collectionNames)
     promise.future
   }
 

@@ -108,7 +108,7 @@ trait EventsQueries
   }
 
   def eventsByTagQuery(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
-    Source.future(rxDriver.journals())
+    Source.future(rxDriver.journals(collectionNames))
       .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
       .mapConcat(identity)
       .splitWhen(_ => true)
@@ -127,12 +127,17 @@ trait EventsQueries
 
     import collection.AggregationFramework._
 
+    val filterByOffsetExp = filterByOffset(offset)
     val stages: List[PipelineOperator] = List(
-      Match(query(Fields.tags) ++ filterByOffset(offset)),
+      Match(query(Fields.tags) ++ filterByOffsetExp),
       UnwindField(Fields.events),
       Match(query(s"${Fields.events}.${Fields.tags}")),
     )
-    val hint = Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1)))
+    val hint = filterByOffsetExp match {
+      case BSONDocument.empty => Some(collection.hint(BSONDocument(Fields.tags -> 1)))
+      case _ => Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1)))
+    }
+
     rxDriver.explainAgg(collection)(QueryType.EventsByTag, stages, hint)
 
     def aggregate(implicit producer: CursorProducer[BSONDocument]): producer.ProducedCursor = {

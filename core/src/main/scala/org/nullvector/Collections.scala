@@ -55,8 +55,15 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
       verifiedNames.clear()
       promisedDone success Done
 
-    case GetJournals(response) =>
-      val collections = database.flatMap(_.collectionNames.map(_.filter(_.startsWith(journalPrefix))).flatMap { names =>
+    case GetJournals(response, collectionNames) =>
+      val collections = database.flatMap(_
+        .collectionNames.map { allNames =>
+        val journalNames = allNames.filter(_.startsWith(journalPrefix))
+        collectionNames match {
+          case Nil => journalNames
+          case _ =>  journalNames.filter(name => collectionNames.exists(colName => name.endsWith(colName)))
+        }
+      }.flatMap { names =>
         Future.traverse(names) { name =>
           val promisedCollection = Promise[BSONCollection]
           promisedCollection completeWith verifiedJournalCollection(name)
@@ -67,7 +74,7 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
 
     case CheckHealth(ack) =>
       val collections = Promise[List[BSONCollection]]
-      context.self ! GetJournals(collections)
+      context.self ! GetJournals(collections, Nil)
       val eventualDone = collections.future.map(_.headOption).flatMap {
         case Some(collection) => collection.find(BSONDocument.empty).one.map(_ => Done)
         case None => Future.successful(Done)
@@ -162,10 +169,16 @@ class Collections(system: ExtendedActorSystem) extends Actor with ActorLogging {
   }
 
   private def ensureTagIndex(indexesManager: CollectionIndexesManager): Future[Unit] = {
-    ensureIndex(index(Seq(
+    val tagsById = ensureIndex(index(Seq(
       "_id" -> IndexType.Ascending,
       Fields.tags -> IndexType.Ascending,
-    ), Some("_tags"), unique = true, sparse = true), indexesManager)
+    ), Some("tags_by_id"), unique = true, sparse = true), indexesManager)
+
+    val allTags = ensureIndex(index(Seq(
+      Fields.tags -> IndexType.Ascending,
+    ), Some("tags"), sparse = true), indexesManager)
+
+    tagsById flatMap (_ => allTags)
   }
 
   private def ensureIndex(index: Aux[BSONSerializationPack.type], indexesManager: CollectionIndexesManager): Future[Unit] = {
@@ -209,7 +222,7 @@ object Collections {
 
   case class GetSnapshotCollectionNameFor(persistentId: String, response: Promise[BSONCollection]) extends Command
 
-  case class GetJournals(response: Promise[List[BSONCollection]]) extends Command
+  case class GetJournals(response: Promise[List[BSONCollection]], collectionNames: List[String]) extends Command
 
   case class SetDatabaseProvider(databaseProvider: DatabaseProvider, ack: Promise[Done]) extends Command
 

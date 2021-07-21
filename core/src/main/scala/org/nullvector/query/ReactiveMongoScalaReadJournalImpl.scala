@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class ReactiveMongoScalaReadJournalImpl(system: ExtendedActorSystem)
+class ReactiveMongoScalaReadJournalImpl(system: ExtendedActorSystem, protected val collectionNames: List[String])
   extends akka.persistence.query.scaladsl.ReadJournal
     with EventsQueries
     with PersistenceIdsQueries with ReactiveMongoScalaReadJournal {

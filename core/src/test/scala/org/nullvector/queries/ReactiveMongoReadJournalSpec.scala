@@ -37,7 +37,7 @@ class ReactiveMongoReadJournalSpec() extends FlatSpec with TestKitBase with Impl
   val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl(ConfigFactory.load(), system)
 
   implicit val materializer: Materializer = Materializer.matFromSystem(system)
-  val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).scaladslReadJournal
+  val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(system).readJournalFor(Nil)
   private val serializer = ReactiveMongoEventSerializer(system.toTyped)
   serializer.addAdapter(new SomeEventAdapter())
 

@@ -16,10 +16,17 @@ class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJour
 
   import akka.actor.typed.scaladsl.adapter._
 
-  override val scaladslReadJournal: ReactiveMongoScalaReadJournal = UnderlyingPersistenceFactory(
-    new ReactiveMongoScalaReadJournalImpl(system),
-    new FromMemoryReadJournal(system.toTyped)
-  )(system)
+  override val scaladslReadJournal: ReactiveMongoScalaReadJournal = createUnderlyingFactory(Nil)
+
+  def readJournalFor(collectionNames: List[String]) = createUnderlyingFactory(collectionNames)
+
+  private def createUnderlyingFactory(names: List[String]) = {
+    UnderlyingPersistenceFactory(
+      new ReactiveMongoScalaReadJournalImpl(system, names),
+      new FromMemoryReadJournal(system.toTyped)
+    )(system)
+  }
+
 
   override val javadslReadJournal: ReactiveMongoJavaReadJournal = new ReactiveMongoJavaReadJournal(scaladslReadJournal)
 }
