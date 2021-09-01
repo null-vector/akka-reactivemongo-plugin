@@ -6,11 +6,13 @@ import scala.reflect.macros.blackbox
 
 private object ValueClassMacroFactory {
 
-  def valueMappingOf[V <: AnyVal](context: blackbox.Context)
-                                 (implicit enumTypeTag: context.WeakTypeTag[V]
-                                 ): context.Expr[BSONReader[V] with BSONWriter[V]] = {
+  def valueMappingOf[V <: AnyVal](context: blackbox.Context)(implicit
+      enumTypeTag: context.WeakTypeTag[V]
+  ): context.Expr[BSONReader[V] with BSONWriter[V]] = {
 
-    context.Expr[BSONReader[V] with BSONWriter[V]](apply(context)(enumTypeTag.tpe))
+    context.Expr[BSONReader[V] with BSONWriter[V]](
+      apply(context)(enumTypeTag.tpe)
+    )
   }
 
   def apply(context: blackbox.Context)(aType: context.Type): context.Tree = {

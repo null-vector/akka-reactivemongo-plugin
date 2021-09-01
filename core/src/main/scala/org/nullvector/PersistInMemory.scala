@@ -16,38 +16,83 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   sealed trait Command
 
-  case class Persist(persistenceId: String, eventEntries: Seq[EventEntry], replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+  case class Persist(
+      persistenceId: String,
+      eventEntries: Seq[EventEntry],
+      replyDone: Either[ActorRef[Done], Promise[Done]]
+  ) extends Command
 
-  case class Snapshot(persistenceId: String, snapshotEntry: SnapshotEntry, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+  case class Snapshot(
+      persistenceId: String,
+      snapshotEntry: SnapshotEntry,
+      replyDone: Either[ActorRef[Done], Promise[Done]]
+  ) extends Command
 
-  case class EventsOf(persistenceId: String, replyEvents: Either[ActorRef[Seq[EventWithOffset]], Promise[Seq[EventWithOffset]]]) extends Command
+  case class EventsOf(
+      persistenceId: String,
+      replyEvents: Either[ActorRef[Seq[EventWithOffset]], Promise[
+        Seq[EventWithOffset]
+      ]]
+  ) extends Command
 
-  case class AllEvents(from: Offset, replyEvents: Either[ActorRef[Source[EventWithOffset, NotUsed]], Promise[Source[EventWithOffset, NotUsed]]]) extends Command
+  case class AllEvents(
+      from: Offset,
+      replyEvents: Either[ActorRef[Source[EventWithOffset, NotUsed]], Promise[
+        Source[EventWithOffset, NotUsed]
+      ]]
+  ) extends Command
 
-  case class AllPersistenceIds(replyEvents: Either[ActorRef[Source[String, NotUsed]], Promise[Source[String, NotUsed]]]) extends Command
+  case class AllPersistenceIds(
+      replyEvents: Either[ActorRef[Source[String, NotUsed]], Promise[
+        Source[String, NotUsed]
+      ]]
+  ) extends Command
 
-  case class SnapshotsOf(persistenceId: String, replySnapshot: Either[ActorRef[Seq[SnapshotEntry]], Promise[Seq[SnapshotEntry]]]) extends Command
+  case class SnapshotsOf(
+      persistenceId: String,
+      replySnapshot: Either[ActorRef[Seq[SnapshotEntry]], Promise[
+        Seq[SnapshotEntry]
+      ]]
+  ) extends Command
 
-  case class HighestSequenceOf(persistenceId: String, replyMaxSeq: Either[ActorRef[Long], Promise[Long]]) extends Command
+  case class HighestSequenceOf(
+      persistenceId: String,
+      replyMaxSeq: Either[ActorRef[Long], Promise[Long]]
+  ) extends Command
 
-  case class RemoveEventsOf(persistenceId: String, toSequenceNr: Long, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+  case class RemoveEventsOf(
+      persistenceId: String,
+      toSequenceNr: Long,
+      replyDone: Either[ActorRef[Done], Promise[Done]]
+  ) extends Command
 
-  case class RemoveSnapshotsOf(persistenceId: String, sequences: SequenceRange, replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
+  case class RemoveSnapshotsOf(
+      persistenceId: String,
+      sequences: SequenceRange,
+      replyDone: Either[ActorRef[Done], Promise[Done]]
+  ) extends Command
 
   case class InvalidateAll(replyDone: Either[ActorRef[Done], Promise[Done]]) extends Command
 
   case class EventEntry(
-                         persistenceId: String,
-                         sequence: Long,
-                         manifest: String,
-                         event: BSONDocument,
-                         tags: Set[String])
+      persistenceId: String,
+      sequence: Long,
+      manifest: String,
+      event: BSONDocument,
+      tags: Set[String]
+  )
 
   case class EventWithOffset(eventEntry: EventEntry, offset: ObjectIdOffset) extends Ordered[EventWithOffset] {
-    override def compare(that: EventWithOffset): Int = offset.compare(that.offset)
+    override def compare(that: EventWithOffset): Int =
+      offset.compare(that.offset)
   }
 
-  case class SnapshotEntry(sequence: Long, manifest: String, event: BSONDocument, timestamp: Long)
+  case class SnapshotEntry(
+      sequence: Long,
+      manifest: String,
+      event: BSONDocument,
+      timestamp: Long
+  )
 
   class SequenceRange(min: Long, max: Long) {
     def this(single: Long) = this(single, single)
@@ -55,13 +100,16 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
     def contains(value: Long) = min <= value && max >= value
   }
 
-  def createExtension(system: TypedActorSystem[_]): PersistInMemory = new PersistInMemory(system)
+  def createExtension(system: TypedActorSystem[_]): PersistInMemory =
+    new PersistInMemory(system)
 
   def get(system: TypedActorSystem[_]): PersistInMemory = apply(system)
 
   def behavior(): Behavior[Command] = Behaviors.setup { _ =>
-    val eventsById: mutable.HashMap[String, ListBuffer[EventWithOffset]] = mutable.HashMap()
-    val snapshotById: mutable.HashMap[String, ListBuffer[SnapshotEntry]] = mutable.HashMap()
+    val eventsById: mutable.HashMap[String, ListBuffer[EventWithOffset]] =
+      mutable.HashMap()
+    val snapshotById: mutable.HashMap[String, ListBuffer[SnapshotEntry]] =
+      mutable.HashMap()
 
     Behaviors.receiveMessage {
       case Persist(persistenceId, eventEntries, replyDone) =>
@@ -69,7 +117,8 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
         eventsById.get(persistenceId) match {
           case Some(events) =>
             events.appendAll(eventsWithOffset)
-          case None => eventsById += (persistenceId -> ListBuffer(eventsWithOffset: _*))
+          case None         =>
+            eventsById += (persistenceId -> ListBuffer(eventsWithOffset: _*))
         }
         reply(replyDone, Done)
         Behaviors.same
@@ -77,7 +126,8 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
       case Snapshot(persistenceId, snapshotEntry, replyDone) =>
         snapshotById.get(persistenceId) match {
           case Some(events) => events append snapshotEntry
-          case None => snapshotById += (persistenceId -> ListBuffer(snapshotEntry))
+          case None         =>
+            snapshotById += (persistenceId -> ListBuffer(snapshotEntry))
         }
         reply(replyDone, Done)
         Behaviors.same
@@ -94,33 +144,41 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
       case RemoveEventsOf(persistenceId, toSequenceNr, replyDone) =>
         eventsById.get(persistenceId) match {
-          case Some(events) => events.dropWhileInPlace(_.eventEntry.sequence <= toSequenceNr)
-          case None =>
+          case Some(events) =>
+            events.dropWhileInPlace(_.eventEntry.sequence <= toSequenceNr)
+          case None         =>
         }
         reply(replyDone, Done)
         Behaviors.same
 
       case HighestSequenceOf(persistenceId, replyMaxSeq) =>
-        val maxEventSeq = eventsById.getOrElse(persistenceId, Nil).lastOption.fold(0L)(_.eventEntry.sequence)
-        val maxSnapshotSeq = snapshotById.getOrElse(persistenceId, Nil).lastOption.fold(0L)(_.sequence)
+        val maxEventSeq    = eventsById
+          .getOrElse(persistenceId, Nil)
+          .lastOption
+          .fold(0L)(_.eventEntry.sequence)
+        val maxSnapshotSeq = snapshotById
+          .getOrElse(persistenceId, Nil)
+          .lastOption
+          .fold(0L)(_.sequence)
         reply(replyMaxSeq, List(maxEventSeq, maxSnapshotSeq).max)
         Behaviors.same
 
       case RemoveSnapshotsOf(persistenceId, sequences, replyDone) =>
         snapshotById.get(persistenceId) match {
-          case Some(snapshots) => snapshots.filterInPlace(entry => !sequences.contains(entry.sequence))
-          case None =>
+          case Some(snapshots) =>
+            snapshots.filterInPlace(entry => !sequences.contains(entry.sequence))
+          case None            =>
         }
         reply(replyDone, Done)
         Behaviors.same
 
       case AllEvents(from, replyEvents) =>
         val allEvents = eventsById.view.values.flatten
-        val filtered = from match {
+        val filtered  = from match {
           case offset: ObjectIdOffset => allEvents.filter(_.offset > offset)
-          case _ => allEvents
+          case _                      => allEvents
         }
-        val source = Source(filtered.toList.sorted)
+        val source    = Source(filtered.toList.sorted)
         reply(replyEvents, source)
         Behaviors.same
 
@@ -139,9 +197,12 @@ object PersistInMemory extends ExtensionId[PersistInMemory] {
 
   private def newOffset(): ObjectIdOffset = ObjectIdOffset.newOffset()
 
-  private def reply[R](refOrPromise: Either[ActorRef[R], Promise[R]], value: R) = {
+  private def reply[R](
+      refOrPromise: Either[ActorRef[R], Promise[R]],
+      value: R
+  ) = {
     refOrPromise match {
-      case Left(ref) => ref.tell(value)
+      case Left(ref)      => ref.tell(value)
       case Right(promise) => promise.success(value)
     }
   }
@@ -151,9 +212,18 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
 
   import PersistInMemory._
 
-  private val persistInMemory: ActorRef[Command] = system.systemActorOf(behavior(), "PersistInMemory", DispatcherSelector.fromConfig("akka-persistence-reactivemongo.persist-in-memory-dispatcher"))
+  private val persistInMemory: ActorRef[Command] = system.systemActorOf(
+    behavior(),
+    "PersistInMemory",
+    DispatcherSelector.fromConfig(
+      "akka-persistence-reactivemongo.persist-in-memory-dispatcher"
+    )
+  )
 
-  def addEvents(persistenceId: String, events: Seq[EventEntry]): Future[Done] = {
+  def addEvents(
+      persistenceId: String,
+      events: Seq[EventEntry]
+  ): Future[Done] = {
     val promisedDone = Promise[Done]()
     persistInMemory.tell(Persist(persistenceId, events, Right(promisedDone)))
     promisedDone.future
@@ -177,7 +247,10 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
     promise.future
   }
 
-  def addSnapshot(persistenceId: String, entry: PersistInMemory.SnapshotEntry): Future[Done] = {
+  def addSnapshot(
+      persistenceId: String,
+      entry: PersistInMemory.SnapshotEntry
+  ): Future[Done] = {
     val promisedDone = Promise[Done]()
     persistInMemory.tell(Snapshot(persistenceId, entry, Right(promisedDone)))
     promisedDone.future
@@ -189,9 +262,14 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
     promise.future
   }
 
-  def removeSnapshotOf(persistenceId: String, sequences: SequenceRange): Future[Done] = {
+  def removeSnapshotOf(
+      persistenceId: String,
+      sequences: SequenceRange
+  ): Future[Done] = {
     val promisedDone = Promise[Done]()
-    persistInMemory.tell(RemoveSnapshotsOf(persistenceId, sequences, Right(promisedDone)))
+    persistInMemory.tell(
+      RemoveSnapshotsOf(persistenceId, sequences, Right(promisedDone))
+    )
     promisedDone.future
   }
 
@@ -212,6 +290,5 @@ class PersistInMemory(system: TypedActorSystem[_]) extends Extension {
     persistInMemory.tell(AllPersistenceIds(Right(promise)))
     promise.future
   }
-
 
 }

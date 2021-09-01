@@ -20,8 +20,3 @@ class BsonTextNormalizerSpec extends FlatSpec with Matchers {
   }
 
 }
-
-
-
-
-

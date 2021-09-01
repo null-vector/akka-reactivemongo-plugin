@@ -4,7 +4,6 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import org.scalatest.{FlatSpec, Matchers}
 
-
 class ReactiveMongoPluginSettingsSpec() extends FlatSpec with Matchers {
 
   val system = ActorSystem(Behaviors.empty, "Settings")

@@ -26,7 +26,9 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 
   override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoDriver
 
-  override def createExtension(system: ExtendedActorSystem): ReactiveMongoDriver = new ReactiveMongoDriver(system)
+  override def createExtension(
+      system: ExtendedActorSystem
+  ): ReactiveMongoDriver = new ReactiveMongoDriver(system)
 
   object QueryType extends Enumeration {
     type QueryType = Value
@@ -38,13 +40,16 @@ object ReactiveMongoDriver extends ExtensionId[ReactiveMongoDriver] with Extensi
 class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   protected val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  private implicit val dispatcher: ExecutionContext = system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
-  private implicit val timeout: Timeout = Timeout(5.seconds)
+  private implicit val dispatcher: ExecutionContext =
+    system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
+  private implicit val timeout: Timeout             = Timeout(5.seconds)
 
   import Collections._
 
-  private val collectionsProps: Props = Props(new Collections(system)).withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)
-  private val collections: ActorRef = system.systemActorOf(collectionsProps, "ReactiveMongoDriverCollections")
+  private val collectionsProps: Props = Props(new Collections(system))
+    .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)
+  private val collections: ActorRef   =
+    system.systemActorOf(collectionsProps, "ReactiveMongoDriverCollections")
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {
     val promise = Promise[BSONCollection]()
@@ -58,8 +63,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     promise.future
   }
 
-
-  def journals(collectionNames: List[String] = Nil): Future[List[BSONCollection]] = {
+  def journals(
+      collectionNames: List[String] = Nil
+  ): Future[List[BSONCollection]] = {
     val promise = Promise[List[BSONCollection]]()
     collections ! GetJournals(promise, collectionNames)
     promise.future
@@ -100,15 +106,23 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
       Nil).flatten
   }
 
-  def explain(collection: BSONCollection)(queryType: QueryType.QueryType, queryBuilder: collection.QueryBuilder) = {
+  def explain(
+      collection: BSONCollection
+  )(queryType: QueryType.QueryType, queryBuilder: collection.QueryBuilder) = {
     if (shouldExplain(queryType)) {
-      queryBuilder.explain().cursor().collect[List]()
+      queryBuilder
+        .explain()
+        .cursor()
+        .collect[List]()
         .map(docs => Try(Json.parse(BsonTextNormalizer(docs.head))).foreach(println))
     }
   }
 
-  def explainAgg(collection: BSONCollection)
-                (queryType: QueryType.QueryType, stages: List[collection.PipelineOperator], hint: Option[collection.Hint]) = {
+  def explainAgg(collection: BSONCollection)(
+      queryType: QueryType.QueryType,
+      stages: List[collection.PipelineOperator],
+      hint: Option[collection.Hint]
+  ) = {
     if (shouldExplain(queryType)) {
       collection
         .aggregatorContext[BSONDocument](stages, explain = true, hint = hint)
@@ -118,7 +132,6 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
         .map(docs => Try(Json.parse(BsonTextNormalizer(docs.head))).foreach(println))
     }
   }
-
 
   private def shouldExplain(queryType: QueryType) = {
     explainOptions.exists(shouldType => shouldType == QueryType.All || shouldType == queryType)

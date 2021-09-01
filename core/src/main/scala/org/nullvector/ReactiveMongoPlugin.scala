@@ -17,8 +17,9 @@ trait ReactiveMongoPlugin {
   val config: Config
   val actorSystem: ActorSystem
 
-  protected lazy val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(actorSystem.toTyped)
-  protected implicit lazy val dispatcher: ExecutionContext = actorSystem.dispatchers.lookup(pluginDispatcherName)
+  protected lazy val serializer: ReactiveMongoEventSerializer =
+    ReactiveMongoEventSerializer(actorSystem.toTyped)
+  protected implicit lazy val dispatcher: ExecutionContext    =
+    actorSystem.dispatchers.lookup(pluginDispatcherName)
 
 }
-

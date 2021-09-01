@@ -28,5 +28,3 @@ class EnumerationMappingSpec extends FlatSpec {
   }
 
 }
-
-

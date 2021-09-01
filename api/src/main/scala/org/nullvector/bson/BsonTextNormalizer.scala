@@ -9,10 +9,14 @@ object BsonTextNormalizer {
 
   def apply(doc: BSONDocument): String = {
     val bsonText = BSONDocument.pretty(doc)
-    val matches = valuePattern.findAllMatchIn(bsonText)
-    matches.foldLeft(bsonText) { (normalizedText, aMatch) =>
-      normalizedText.replace(aMatch.group(1), aMatch.group(2))
-    }.replaceAll("\\s*","").replace("\"","\\\"").replace("'", "\"")
+    val matches  = valuePattern.findAllMatchIn(bsonText)
+    matches
+      .foldLeft(bsonText) { (normalizedText, aMatch) =>
+        normalizedText.replace(aMatch.group(1), aMatch.group(2))
+      }
+      .replaceAll("\\s*", "")
+      .replace("\"", "\\\"")
+      .replace("'", "\"")
   }
 
   def lazyBsonText(doc: BSONDocument) = new LazyJsonText(doc)

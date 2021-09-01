@@ -16,8 +16,12 @@ abstract class EventAdapter[E](implicit ev: ClassTag[E]) {
 
   def bsonToPayload(doc: BSONDocument): E
 
-  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(payload.asInstanceOf[E])
+  private[nullvector] def toBson(payload: Any): BSONDocument = payloadToBson(
+    payload.asInstanceOf[E]
+  )
 
-  private[nullvector] def readTags(payload: Any): Set[String] = tags(payload.asInstanceOf[E])
+  private[nullvector] def readTags(payload: Any): Set[String] = tags(
+    payload.asInstanceOf[E]
+  )
 
 }

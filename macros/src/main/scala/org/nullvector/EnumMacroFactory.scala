@@ -6,13 +6,16 @@ import scala.reflect.macros.blackbox
 
 private object EnumMacroFactory {
 
-  def enumMappingOf[E](context: blackbox.Context)
-                      (implicit enumTypeTag: context.WeakTypeTag[E]
-                      ): context.Expr[BSONReader[E] with BSONWriter[E]] = {
+  def enumMappingOf[E](context: blackbox.Context)(implicit
+      enumTypeTag: context.WeakTypeTag[E]
+  ): context.Expr[BSONReader[E] with BSONWriter[E]] = {
     import context.universe._
-    val aType = enumTypeTag.tpe
-    val enumType = context.typeOf[Enumeration]
-    val isEnumType = scala.util.Try(aType.typeSymbol.owner.asType.toType).map(_ =:= enumType).getOrElse(false)
+    val aType      = enumTypeTag.tpe
+    val enumType   = context.typeOf[Enumeration]
+    val isEnumType = scala.util
+      .Try(aType.typeSymbol.owner.asType.toType)
+      .map(_ =:= enumType)
+      .getOrElse(false)
 
     if (isEnumType)
       context.Expr[BSONReader[E] with BSONWriter[E]](apply(context)(aType))
@@ -21,9 +24,10 @@ private object EnumMacroFactory {
   }
 
   def apply(context: blackbox.Context)(atype: context.Type): context.Tree = {
-    val normalizedTypeName = atype.toString.split("\\.").filterNot(_ == "package")
-    val enumValue = normalizedTypeName.mkString(".")
-    val enumName = normalizedTypeName.dropRight(1).mkString(".")
+    val normalizedTypeName =
+      atype.toString.split("\\.").filterNot(_ == "package")
+    val enumValue          = normalizedTypeName.mkString(".")
+    val enumName           = normalizedTypeName.dropRight(1).mkString(".")
 
     val code = context.parse(
       s"""

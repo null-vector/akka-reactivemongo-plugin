@@ -33,11 +33,9 @@ package object domain {
     }
   }
 
-
   case object Monday extends Day
 
   case object Sunday extends Day
-
 
   case class Money(amount: BigDecimal, currency: Money.Currency) {
 

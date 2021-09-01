@@ -16,15 +16,20 @@ class DefaultDatabaseProvider(system: ActorSystem) extends DatabaseProvider {
   protected val logger: Logger = LoggerFactory.getLogger(getClass)
 
   private lazy val db = Try {
-    val mongoUri = system.settings.config.getString("akka-persistence-reactivemongo.mongo-uri")
+    val mongoUri = system.settings.config.getString(
+      "akka-persistence-reactivemongo.mongo-uri"
+    )
     logger.info("Connecting to {}", mongoUri)
     Await.result(
       MongoConnection.fromString(mongoUri).flatMap { parsedUri =>
         parsedUri.db match {
           case Some(databaseName) =>
-            AsyncDriver(system.settings.config).connect(parsedUri).flatMap(_.database(databaseName))
-          case None =>
-            val exception = new IllegalStateException(s"Missing Database Name in $mongoUri")
+            AsyncDriver(system.settings.config)
+              .connect(parsedUri)
+              .flatMap(_.database(databaseName))
+          case None               =>
+            val exception =
+              new IllegalStateException(s"Missing Database Name in $mongoUri")
             throw exception
         }
       },

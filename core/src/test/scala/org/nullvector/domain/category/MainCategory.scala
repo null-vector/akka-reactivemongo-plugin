@@ -8,7 +8,7 @@ object MainCategory {
   }
 
   case class BranchCategory2(name: String, categories: List[Category2]) extends Category2
-  case class TerminalCategory2(name: String) extends Category2
+  case class TerminalCategory2(name: String)                            extends Category2
 
   case class RootCategory2(name: String, category2: Category2)
 

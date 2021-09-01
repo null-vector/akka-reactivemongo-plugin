@@ -27,10 +27,4 @@ class TimeoutPromiseSpec extends FlatSpec with Matchers {
     )
   }
 
-
 }
-
-
-
-
-

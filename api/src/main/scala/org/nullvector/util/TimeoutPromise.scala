@@ -7,10 +7,11 @@ import scala.concurrent.duration.FiniteDuration
 object TimeoutPromise {
   private val timer: Timer = new Timer(true)
 
-  def apply[T](timeout: FiniteDuration, onTimeoutMessage: () => String)
-              (implicit ec: ExecutionContext): Promise[T] = {
+  def apply[T](timeout: FiniteDuration, onTimeoutMessage: () => String)(implicit
+      ec: ExecutionContext
+  ): Promise[T] = {
     val thePromise = Promise[T]
-    val timerTask = new TimerTask() {
+    val timerTask  = new TimerTask() {
       def run() = {
         if (!thePromise.isCompleted) {
           thePromise.tryFailure(PromiseTimeoutException(onTimeoutMessage()))

@@ -15,39 +15,53 @@ import scala.concurrent.duration.DurationInt
 
 class EventAdapterSerializerSpec extends FlatSpec {
 
-  private val system: ActorSystem[Nothing] = ActorSystem(Behaviors.empty, "TypedSerializer")
+  private val system: ActorSystem[Nothing] =
+    ActorSystem(Behaviors.empty, "TypedSerializer")
 
   it should " adapter not found " in {
-    val repr = PersistentRepr(OneEvent("One"), manifest = "OneManifest")
+    val repr   = PersistentRepr(OneEvent("One"), manifest = "OneManifest")
     val future = ReactiveMongoEventSerializer(system).deserialize(Seq(repr))
-    a[Registry#EventAdapterNotFound] shouldBe thrownBy(Await.result(future, 1.second))
+    a[Registry#EventAdapterNotFound] shouldBe thrownBy(
+      Await.result(future, 1.second)
+    )
   }
 
   it should " deserialize " in {
     val serializer = ReactiveMongoEventSerializer(system)
-    val repr = PersistentRepr(BSONDocument("name" -> "AName"), manifest = "OneManifest")
-    serializer.addAdapters(Seq(EventAdapterFactory.adapt[OneEvent]("OneManifest")))
-    val future = serializer.deserialize(Seq(repr))
+    val repr       =
+      PersistentRepr(BSONDocument("name" -> "AName"), manifest = "OneManifest")
+    serializer.addAdapters(
+      Seq(EventAdapterFactory.adapt[OneEvent]("OneManifest"))
+    )
+    val future     = serializer.deserialize(Seq(repr))
     Await.result(future, 1.second).head.payload shouldBe OneEvent("AName")
   }
 
   it should " serialize " in {
-    val serializer = ReactiveMongoEventSerializer(system)
-    val repr = PersistentRepr(TwoEvent("TwoEventName"), manifest = "TwoManifest")
-    serializer.addAdapters(Seq(EventAdapterFactory.adapt[TwoEvent]("TwoManifest", Set("TwoEventTag"))))
-    val future = serializer.serialize(Seq(repr))
+    val serializer   = ReactiveMongoEventSerializer(system)
+    val repr         =
+      PersistentRepr(TwoEvent("TwoEventName"), manifest = "TwoManifest")
+    serializer.addAdapters(
+      Seq(
+        EventAdapterFactory.adapt[TwoEvent]("TwoManifest", Set("TwoEventTag"))
+      )
+    )
+    val future       = serializer.serialize(Seq(repr))
     val deserialized = Await.result(future, 1.second)
     deserialized.head._1.payload shouldBe BSONDocument("name" -> "TwoEventName")
     deserialized.head._2 shouldBe Set("TwoEventTag")
   }
 
   it should " serialize with tagger" in {
-    val serializer = ReactiveMongoEventSerializer(system)
-    val taggedEvent = Tagged(TwoEvent("TwoEventNameWithTagger"), Set("TagFromTagged"))
-    val repr = PersistentRepr(taggedEvent, manifest = "TwoManifest")
-    val future = serializer.serialize(Seq(repr))
+    val serializer   = ReactiveMongoEventSerializer(system)
+    val taggedEvent  =
+      Tagged(TwoEvent("TwoEventNameWithTagger"), Set("TagFromTagged"))
+    val repr         = PersistentRepr(taggedEvent, manifest = "TwoManifest")
+    val future       = serializer.serialize(Seq(repr))
     val deserialized = Await.result(future, 1.second)
-    deserialized.head._1.payload shouldBe BSONDocument("name" -> "TwoEventNameWithTagger")
+    deserialized.head._1.payload shouldBe BSONDocument(
+      "name" -> "TwoEventNameWithTagger"
+    )
     deserialized.head._2 shouldBe Set("TagFromTagged")
   }
 
@@ -55,5 +69,3 @@ class EventAdapterSerializerSpec extends FlatSpec {
 
   case class TwoEvent(name: String)
 }
-
-

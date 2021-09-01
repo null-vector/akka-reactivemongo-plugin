@@ -17,7 +17,7 @@ object PersistenceIdsQueries {
 }
 
 trait PersistenceIdsQueries
-  extends akka.persistence.query.scaladsl.PersistenceIdsQuery
+    extends akka.persistence.query.scaladsl.PersistenceIdsQuery
     with akka.persistence.query.scaladsl.CurrentPersistenceIdsQuery {
 
   this: ReactiveMongoScalaReadJournalImpl =>
@@ -25,13 +25,16 @@ trait PersistenceIdsQueries
   private val amountOfCores: Int = Runtime.getRuntime.availableProcessors()
 
   override def persistenceIds(): Source[String, NotUsed] = {
-    Source.fromGraph(new PullerGraph[PersistenceId, Offset](
-      NoOffset,
-      defaultRefreshInterval,
-      _.offset,
-      greaterOffsetOf,
-      o => currentPersistenceIds(o)
-    ))
+    Source
+      .fromGraph(
+        new PullerGraph[PersistenceId, Offset](
+          NoOffset,
+          defaultRefreshInterval,
+          _.offset,
+          greaterOffsetOf,
+          o => currentPersistenceIds(o)
+        )
+      )
       .mapConcat(identity)
       .map(_.persistenceId)
   }
@@ -41,20 +44,32 @@ trait PersistenceIdsQueries
   }
 
   def currentPersistenceIds(offset: Offset): Source[PersistenceId, NotUsed] = {
-    Source.lazyFuture(() => rxDriver.journals())
+    Source
+      .lazyFuture(() => rxDriver.journals())
       .mapConcat(identity)
       .splitWhen(_ => true)
       .flatMapConcat(buildFindAllIds(_, offset))
       .mergeSubstreams
   }
 
-  private def buildFindAllIds(coll: collection.BSONCollection, offset: Offset): Source[PersistenceId, Future[State]] = {
+  private def buildFindAllIds(
+      coll: collection.BSONCollection,
+      offset: Offset
+  ): Source[PersistenceId, Future[State]] = {
     coll
-      .find(BSONDocument(Fields.from_sn -> 1L) ++ filterByOffset(offset), Option.empty[BSONDocument])
+      .find(
+        BSONDocument(Fields.from_sn -> 1L) ++ filterByOffset(offset),
+        Option.empty[BSONDocument]
+      )
       .sort(BSONDocument("_id" -> 1))
       .cursor[BSONDocument]()
       .documentSource()
-      .map(doc => PersistenceId(doc.getAsOpt[String](Fields.persistenceId).get, ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)))
+      .map(doc =>
+        PersistenceId(
+          doc.getAsOpt[String](Fields.persistenceId).get,
+          ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
+        )
+      )
   }
 
 }

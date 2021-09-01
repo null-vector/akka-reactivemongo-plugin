@@ -12,18 +12,33 @@ trait ReactiveMongoHighestSequence {
 
   implicit lazy val ac: ActorSystem = this.actorSystem
 
-  def asyncReadHighestSequenceNr(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
-    val queries = List(journalMaxSnFrom(persistenceId, fromSequenceNr), snapshotMaxSnFrom(persistenceId))
+  def asyncReadHighestSequenceNr(
+      persistenceId: String,
+      fromSequenceNr: Long
+  ): Future[Long] = {
+    val queries = List(
+      journalMaxSnFrom(persistenceId, fromSequenceNr),
+      snapshotMaxSnFrom(persistenceId)
+    )
     Future.sequence(queries).map(_.max)
   }
 
-  private def journalMaxSnFrom(persistenceId: String, fromSequenceNr: Long): Future[Long] = {
+  private def journalMaxSnFrom(
+      persistenceId: String,
+      fromSequenceNr: Long
+  ): Future[Long] = {
     rxDriver.journalCollection(persistenceId).flatMap { collection =>
-      val queryBuilder = collection.find(BSONDocument(
-        Fields.persistenceId -> persistenceId,
-        Fields.to_sn -> BSONDocument("$gte" -> fromSequenceNr),
-      ))
-      .hint(collection.hint(BSONDocument(Fields.persistenceId -> 1, Fields.to_sn -> -1)))
+      val queryBuilder = collection
+        .find(
+          BSONDocument(
+            Fields.persistenceId -> persistenceId,
+            Fields.to_sn         -> BSONDocument("$gte" -> fromSequenceNr)
+          )
+        )
+        .hint(
+          collection
+            .hint(BSONDocument(Fields.persistenceId -> 1, Fields.to_sn -> -1))
+        )
       rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]
@@ -35,7 +50,8 @@ trait ReactiveMongoHighestSequence {
     rxDriver.snapshotCollection(persistenceId).flatMap { collection =>
       val queryBuilder = collection.find(
         BSONDocument(Fields.persistenceId -> persistenceId),
-        Some(BSONDocument(Fields.sequence -> 1)))
+        Some(BSONDocument(Fields.sequence -> 1))
+      )
       rxDriver.explain(collection)(QueryType.HighestSeq, queryBuilder)
       queryBuilder
         .one[BSONDocument]

@@ -15,11 +15,22 @@ class ReactiveMongoSnapshotStore(val config: Config) extends SnapshotStore {
     new InMemorySnapshotStore(context.system)
   )(context.system)
 
-  override def loadAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Option[SelectedSnapshot]] = snapshotOps.loadAsync(persistenceId, criteria)
+  override def loadAsync(
+      persistenceId: String,
+      criteria: SnapshotSelectionCriteria
+  ): Future[Option[SelectedSnapshot]] =
+    snapshotOps.loadAsync(persistenceId, criteria)
 
-  override def saveAsync(metadata: SnapshotMetadata, snapshot: Any): Future[Unit] = snapshotOps.saveAsync(metadata, snapshot)
+  override def saveAsync(
+      metadata: SnapshotMetadata,
+      snapshot: Any
+  ): Future[Unit] = snapshotOps.saveAsync(metadata, snapshot)
 
-  override def deleteAsync(metadata: SnapshotMetadata): Future[Unit] = snapshotOps.deleteAsync(metadata)
+  override def deleteAsync(metadata: SnapshotMetadata): Future[Unit] =
+    snapshotOps.deleteAsync(metadata)
 
-  override def deleteAsync(persistenceId: String, criteria: SnapshotSelectionCriteria): Future[Unit] = snapshotOps.deleteAsync(persistenceId, criteria)
+  override def deleteAsync(
+      persistenceId: String,
+      criteria: SnapshotSelectionCriteria
+  ): Future[Unit] = snapshotOps.deleteAsync(persistenceId, criteria)
 }

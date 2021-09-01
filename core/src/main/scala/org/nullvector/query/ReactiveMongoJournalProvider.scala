@@ -7,18 +7,24 @@ import org.nullvector.snapshot.{InMemorySnapshotStore, ReactiveMongoSnapshotImpl
 
 object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProvider] with ExtensionIdProvider {
 
-  override def lookup: ExtensionId[_ <: Extension] = ReactiveMongoJournalProvider
+  override def lookup: ExtensionId[_ <: Extension] =
+    ReactiveMongoJournalProvider
 
-  override def createExtension(system: ExtendedActorSystem): ReactiveMongoJournalProvider = new ReactiveMongoJournalProvider(system)
+  override def createExtension(
+      system: ExtendedActorSystem
+  ): ReactiveMongoJournalProvider = new ReactiveMongoJournalProvider(system)
 }
 
 class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJournalProvider with Extension {
 
   import akka.actor.typed.scaladsl.adapter._
 
-  override val scaladslReadJournal: ReactiveMongoScalaReadJournal = createUnderlyingFactory(Nil)
+  override val scaladslReadJournal: ReactiveMongoScalaReadJournal =
+    createUnderlyingFactory(Nil)
 
-  def readJournalFor(collectionNames: List[String]) = createUnderlyingFactory(collectionNames)
+  def readJournalFor(collectionNames: List[String]) = createUnderlyingFactory(
+    collectionNames
+  )
 
   private def createUnderlyingFactory(names: List[String]) = {
     UnderlyingPersistenceFactory(
@@ -27,9 +33,6 @@ class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJour
     )(system)
   }
 
-
-  override val javadslReadJournal: ReactiveMongoJavaReadJournal = new ReactiveMongoJavaReadJournal(scaladslReadJournal)
+  override val javadslReadJournal: ReactiveMongoJavaReadJournal =
+    new ReactiveMongoJavaReadJournal(scaladslReadJournal)
 }
-
-
-

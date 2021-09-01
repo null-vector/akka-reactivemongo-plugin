@@ -28,27 +28,65 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
       """.stripMargin
   ) withFallback ConfigFactory.load()
 
-  val testKit: ActorTestKit = ActorTestKit(config)
+  val testKit: ActorTestKit                           = ActorTestKit(config)
   implicit val actorSystem: TypedActorSystem[Nothing] = testKit.system
-  implicit val ec: ExecutionContextExecutor = actorSystem.executionContext
+  implicit val ec: ExecutionContextExecutor           = actorSystem.executionContext
 
-  private val serializer: ReactiveMongoEventSerializer = ReactiveMongoEventSerializer(actorSystem)
-  serializer.addAdapter(EventAdapterFactory.adapt[AnEvent]("AnEvent", (event: AnEvent) => Set(event.tag)))
-  private val readJournal: ReactiveMongoScalaReadJournal = ReactiveMongoJournalProvider(actorSystem).scaladslReadJournal
-  private val memory: PersistInMemory = PersistInMemory(actorSystem)
-
+  private val serializer: ReactiveMongoEventSerializer   =
+    ReactiveMongoEventSerializer(actorSystem)
+  serializer.addAdapter(
+    EventAdapterFactory
+      .adapt[AnEvent]("AnEvent", (event: AnEvent) => Set(event.tag))
+  )
+  private val readJournal: ReactiveMongoScalaReadJournal =
+    ReactiveMongoJournalProvider(actorSystem).scaladslReadJournal
+  private val memory: PersistInMemory                    = PersistInMemory(actorSystem)
 
   it should " current by Tags " in {
     val addEvents = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId1", Seq(EventEntry("pId1", 1, "AnEvent", BSONDocument("tag" -> "tagA"), Set("tagA"))))
-      _ <- memory.addEvents("pId2", Seq(EventEntry("pId2", 1, "AnEvent", BSONDocument("tag" -> "tagB"), Set("tagB"))))
-      _ <- memory.addEvents("pId3", Seq(EventEntry("pId3", 1, "AnEvent", BSONDocument("tag" -> "tagC"), Set("tagC"))))
+      _ <- memory.addEvents(
+             "pId1",
+             Seq(
+               EventEntry(
+                 "pId1",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagA"),
+                 Set("tagA")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId2",
+             Seq(
+               EventEntry(
+                 "pId2",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagB"),
+                 Set("tagB")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId3",
+             Seq(
+               EventEntry(
+                 "pId3",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC"),
+                 Set("tagC")
+               )
+             )
+           )
     } yield ()
     Await.result(addEvents, 1.second)
 
-    val eventSource = readJournal.currentEventsByTags(Seq("tagA", "tagB"), NoOffset)
-    val envelopes = Await.result(eventSource.runWith(Sink.seq), 1.second)
+    val eventSource =
+      readJournal.currentEventsByTags(Seq("tagA", "tagB"), NoOffset)
+    val envelopes   = Await.result(eventSource.runWith(Sink.seq), 1.second)
 
     envelopes.count {
       case EventEnvelope(_, _, _, AnEvent("tagA")) => true
@@ -59,90 +97,218 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
   it should " current by Tag " in {
     val addEvents = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId1", Seq(EventEntry("pId1", 1, "AnEvent", BSONDocument("tag" -> "tagA"), Set("tagA"))))
-      _ <- memory.addEvents("pId2", Seq(EventEntry("pId2", 1, "AnEvent", BSONDocument("tag" -> "tagB"), Set("tagB"))))
-      _ <- memory.addEvents("pId3", Seq(EventEntry("pId3", 1, "AnEvent", BSONDocument("tag" -> "tagC"), Set("tagC"))))
+      _ <- memory.addEvents(
+             "pId1",
+             Seq(
+               EventEntry(
+                 "pId1",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagA"),
+                 Set("tagA")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId2",
+             Seq(
+               EventEntry(
+                 "pId2",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagB"),
+                 Set("tagB")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId3",
+             Seq(
+               EventEntry(
+                 "pId3",
+                 1,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC"),
+                 Set("tagC")
+               )
+             )
+           )
     } yield ()
     Await.result(addEvents, 1.second)
 
     val eventSource = readJournal.currentEventsByTag("tagA", NoOffset)
-    val envelopes = Await.result(eventSource.runWith(Sink.seq), 1.second)
+    val envelopes   = Await.result(eventSource.runWith(Sink.seq), 1.second)
 
-    envelopes.count {
-      case EventEnvelope(_, _, _, AnEvent("tagA")) => true
+    envelopes.count { case EventEnvelope(_, _, _, AnEvent("tagA")) =>
+      true
     } shouldBe 1
   }
 
   it should " current by Tags and offset " in {
     val addEvents = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId6", Seq(EventEntry("pId6", 6, "AnEvent", BSONDocument("tag" -> "tagC"), Set("tagC"))))
-      _ <- memory.addEvents("pId7", Seq(EventEntry("pId7", 5, "AnEvent", BSONDocument("tag" -> "tagC"), Set("tagC"))))
-      _ <- memory.addEvents("pId8", Seq(EventEntry("pId8", 4, "AnEvent", BSONDocument("tag" -> "tagC"), Set("tagC"))))
+      _ <- memory.addEvents(
+             "pId6",
+             Seq(
+               EventEntry(
+                 "pId6",
+                 6,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId7",
+             Seq(
+               EventEntry(
+                 "pId7",
+                 5,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId8",
+             Seq(
+               EventEntry(
+                 "pId8",
+                 4,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC"),
+                 Set("tagC")
+               )
+             )
+           )
     } yield ()
     Await.result(addEvents, 1.second)
 
-    val fromOffset = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
-    val remainOffset = Await.result(memory.eventsOf("pId8"), 1.second).head.offset
+    val fromOffset   = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
+    val remainOffset =
+      Await.result(memory.eventsOf("pId8"), 1.second).head.offset
 
     val eventSource = readJournal.currentEventsByTags(Seq("tagC"), fromOffset)
-    val envelopes = Await.result(eventSource.runWith(Sink.seq), 1.second)
+    val envelopes   = Await.result(eventSource.runWith(Sink.seq), 1.second)
 
-    envelopes.count {
-      case EventEnvelope(`remainOffset`, "pId8", 4, AnEvent("tagC")) => true
+    envelopes.count { case EventEnvelope(`remainOffset`, "pId8", 4, AnEvent("tagC")) =>
+      true
     } shouldBe 1
   }
 
   it should " current by Tags and offset get raw events" in {
-    val document = BSONDocument("tag" -> "tagC3")
-    val addEvents = for {
+    val document     = BSONDocument("tag" -> "tagC3")
+    val addEvents    = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId6", Seq(EventEntry("pId6", 6, "AnEvent", BSONDocument("tag" -> "tagC1"), Set("tagC"))))
-      _ <- memory.addEvents("pId7", Seq(EventEntry("pId7", 5, "AnEvent", BSONDocument("tag" -> "tagC2"), Set("tagC"))))
-      _ <- memory.addEvents("pId8", Seq(EventEntry("pId8", 4, "AnEvent", document, Set("tagC"))))
+      _ <- memory.addEvents(
+             "pId6",
+             Seq(
+               EventEntry(
+                 "pId6",
+                 6,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC1"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId7",
+             Seq(
+               EventEntry(
+                 "pId7",
+                 5,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC2"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId8",
+             Seq(EventEntry("pId8", 4, "AnEvent", document, Set("tagC")))
+           )
     } yield ()
     Await.result(addEvents, 1.second)
-    val fromOffset = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
-    val remainOffset = Await.result(memory.eventsOf("pId8"), 1.second).head.offset
+    val fromOffset   = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
+    val remainOffset =
+      Await.result(memory.eventsOf("pId8"), 1.second).head.offset
 
     val eventSource = readJournal.currentRawEventsByTag(Seq("tagC"), fromOffset)
-    val envelopes = Await.result(eventSource.runWith(Sink.seq), 1.second)
+    val envelopes   = Await.result(eventSource.runWith(Sink.seq), 1.second)
 
-    envelopes.count {
-      case EventEnvelope(`remainOffset`, "pId8", 4, `document`) => true
+    envelopes.count { case EventEnvelope(`remainOffset`, "pId8", 4, `document`) =>
+      true
     } shouldBe 1
   }
 
   it should " current by a single Tag and offset get raw events" in {
-    val document = BSONDocument("tag" -> "tagC3")
-    val addEvents = for {
+    val document     = BSONDocument("tag" -> "tagC3")
+    val addEvents    = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId6", Seq(EventEntry("pId6", 6, "AnEvent", BSONDocument("tag" -> "tagC1"), Set("tagC"))))
-      _ <- memory.addEvents("pId7", Seq(EventEntry("pId7", 5, "AnEvent", BSONDocument("tag" -> "tagC2"), Set("tagC"))))
-      _ <- memory.addEvents("pId8", Seq(EventEntry("pId8", 4, "AnEvent", document, Set("tagC"))))
+      _ <- memory.addEvents(
+             "pId6",
+             Seq(
+               EventEntry(
+                 "pId6",
+                 6,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC1"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId7",
+             Seq(
+               EventEntry(
+                 "pId7",
+                 5,
+                 "AnEvent",
+                 BSONDocument("tag" -> "tagC2"),
+                 Set("tagC")
+               )
+             )
+           )
+      _ <- memory.addEvents(
+             "pId8",
+             Seq(EventEntry("pId8", 4, "AnEvent", document, Set("tagC")))
+           )
     } yield ()
     Await.result(addEvents, 1.second)
-    val fromOffset = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
-    val remainOffset = Await.result(memory.eventsOf("pId8"), 1.second).head.offset
+    val fromOffset   = Await.result(memory.eventsOf("pId7"), 1.second).head.offset
+    val remainOffset =
+      Await.result(memory.eventsOf("pId8"), 1.second).head.offset
 
     val eventSource = readJournal.currentRawEventsByTag("tagC", fromOffset)
-    val envelopes = Await.result(eventSource.runWith(Sink.seq), 1.second)
+    val envelopes   = Await.result(eventSource.runWith(Sink.seq), 1.second)
 
-    envelopes.count {
-      case EventEnvelope(`remainOffset`, "pId8", 4, `document`) => true
+    envelopes.count { case EventEnvelope(`remainOffset`, "pId8", 4, `document`) =>
+      true
     } shouldBe 1
   }
 
   it should " current persistence Ids" in {
     val addEvents = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents("pId8", Seq(EventEntry("pId8", 6, "AnEvent", BSONDocument(), Set.empty)))
-      _ <- memory.addEvents("pId7", Seq(EventEntry("pId7", 5, "AnEvent", BSONDocument(), Set.empty)))
-      _ <- memory.addEvents("pId6", Seq(EventEntry("pId6", 4, "AnEvent", BSONDocument(), Set.empty)))
+      _ <- memory.addEvents(
+             "pId8",
+             Seq(EventEntry("pId8", 6, "AnEvent", BSONDocument(), Set.empty))
+           )
+      _ <- memory.addEvents(
+             "pId7",
+             Seq(EventEntry("pId7", 5, "AnEvent", BSONDocument(), Set.empty))
+           )
+      _ <- memory.addEvents(
+             "pId6",
+             Seq(EventEntry("pId6", 4, "AnEvent", BSONDocument(), Set.empty))
+           )
     } yield ()
     Await.result(addEvents, 1.second)
 
-    val ids = readJournal.currentPersistenceIds()
+    val ids       = readJournal.currentPersistenceIds()
     val envelopes = Await.result(ids.runWith(Sink.seq), 1.second)
 
     envelopes should contain theSameElementsAs Seq("pId6", "pId8", "pId7")
@@ -150,18 +316,45 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
 
   it should " current events by persistence Id" in {
     val aPersistenceId = "pId87"
-    val addEvents = for {
+    val addEvents      = for {
       _ <- memory.invalidateAll()
-      _ <- memory.addEvents(aPersistenceId, Seq(
-        EventEntry(aPersistenceId, 6, "AnEvent", BSONDocument("tag" -> ""), Set.empty),
-        EventEntry(aPersistenceId, 7, "AnEvent", BSONDocument("tag" -> ""), Set.empty),
-        EventEntry(aPersistenceId, 8, "AnEvent", BSONDocument("tag" -> ""), Set.empty),
-        EventEntry(aPersistenceId, 9, "AnEvent", BSONDocument("tag" -> ""), Set.empty),
-      ))
+      _ <- memory.addEvents(
+             aPersistenceId,
+             Seq(
+               EventEntry(
+                 aPersistenceId,
+                 6,
+                 "AnEvent",
+                 BSONDocument("tag" -> ""),
+                 Set.empty
+               ),
+               EventEntry(
+                 aPersistenceId,
+                 7,
+                 "AnEvent",
+                 BSONDocument("tag" -> ""),
+                 Set.empty
+               ),
+               EventEntry(
+                 aPersistenceId,
+                 8,
+                 "AnEvent",
+                 BSONDocument("tag" -> ""),
+                 Set.empty
+               ),
+               EventEntry(
+                 aPersistenceId,
+                 9,
+                 "AnEvent",
+                 BSONDocument("tag" -> ""),
+                 Set.empty
+               )
+             )
+           )
     } yield ()
     Await.result(addEvents, 1.second)
 
-    val ids = readJournal.currentEventsByPersistenceId(aPersistenceId, 6, 9)
+    val ids       = readJournal.currentEventsByPersistenceId(aPersistenceId, 6, 9)
     val envelopes = Await.result(ids.runWith(Sink.seq), 1.second)
 
     envelopes.map(_.sequenceNr) should contain theSameElementsAs Seq(7, 8, 9)
@@ -169,7 +362,7 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
 
   it should " infinite event by tag stream" in {
     Await.result(memory.invalidateAll(), 1.second)
-    val atomicInt = new AtomicInteger(0)
+    val atomicInt    = new AtomicInteger(0)
     val promisedDone = Promise[Done]()
     val streamKiller = readJournal
       .eventsByTag("Infinite", NoOffset)
@@ -185,7 +378,18 @@ class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
 
     val eventualDone = Source(1 to 55).async.runForeach { seq =>
       Thread.sleep(1)
-      memory.addEvents(pid, Seq(EventEntry(pid, seq, "AnEvent", BSONDocument("tag" -> s"$seq"), Set("Infinite"))))
+      memory.addEvents(
+        pid,
+        Seq(
+          EventEntry(
+            pid,
+            seq,
+            "AnEvent",
+            BSONDocument("tag" -> s"$seq"),
+            Set("Infinite")
+          )
+        )
+      )
     }
     Await.result(eventualDone, 1.second)
 
