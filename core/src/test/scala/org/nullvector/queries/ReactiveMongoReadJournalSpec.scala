@@ -270,9 +270,9 @@ class ReactiveMongoReadJournalSpec()
         .run(),
       14.seconds
     )
-    Thread.sleep(200)
+    Thread.sleep(1000)
     val offset       = ObjectIdOffset.newOffset()
-    Thread.sleep(200)
+    Thread.sleep(1000)
     Await.ready(
       Source(1 to 10)
         .mapAsync(amountOfCores) { idx =>
@@ -292,7 +292,7 @@ class ReactiveMongoReadJournalSpec()
         .run(),
       14.seconds
     )
-    Thread.sleep(200)
+    Thread.sleep(1000)
     val eventualDone =
       readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
     val envelopes    = Await.result(eventualDone, 14.seconds)
