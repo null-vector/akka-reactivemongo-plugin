@@ -6,14 +6,14 @@ import akka.persistence.PersistentRepr
 import akka.persistence.journal.Tagged
 import org.nullvector.EventAdapterFactory
 import org.nullvector.typed.ReactiveMongoEventSerializer.Registry
-import org.scalatest.Matchers.{a, convertToAnyShouldWrapper, thrownBy}
-import org.scalatest._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper, thrownBy}
 import reactivemongo.api.bson.BSONDocument
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
-class EventAdapterSerializerSpec extends FlatSpec {
+class EventAdapterSerializerSpec extends AnyFlatSpec {
 
   private val system: ActorSystem[Nothing] =
     ActorSystem(Behaviors.empty, "TypedSerializer")

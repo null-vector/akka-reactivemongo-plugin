@@ -2,9 +2,10 @@ package org.nullvector
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class ReactiveMongoPluginSettingsSpec() extends FlatSpec with Matchers {
+class ReactiveMongoPluginSettingsSpec() extends AnyFlatSpec with Matchers {
 
   val system = ActorSystem(Behaviors.empty, "Settings")
 

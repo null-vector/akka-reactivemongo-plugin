@@ -8,7 +8,9 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.EventAdapter
 import org.nullvector.snapshot.ReactiveMongoSnapshotImpl
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import reactivemongo.api.bson._
 
 import scala.collection.immutable
@@ -20,7 +22,7 @@ import scala.util.Random
 class ReactiveMongoJournalSpec()
     extends TestKit(ActorSystem("ReactiveMongoPlugin"))
     with ImplicitSender
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with BeforeAndAfterAll {
 

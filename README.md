@@ -117,7 +117,23 @@ If you want different refresh intervals from different query, you can add a `Ref
     .addAttributes(RefreshInterval(700.millis))
     .runWith(Sink.foreach(println))
 ```
-
+# Filter Events by some Event's Attribute
+## From regular stream
+```scala
+val readJournal = ReactiveMongoJournalProvider(system).readJournalFor(Seq("Orders"))
+readJournal
+  .currentEventsByTag("TAG", NoOffset, BSONDocument("events.p.customerId" -> customerId), None)
+  .mapAsyc(envelope => someEventualWork(envelope))
+  .run()
+```
+## From non-termination stream
+```scala
+val readJournal = ReactiveMongoJournalProvider(system).readJournalFor(Seq("Orders"))
+readJournal
+  .eventsByTags(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> customerId), None, 5.seconds)
+  .mapAsyc(envelope => someEventualWork(envelope) )
+  .run()
+```
 # Test Driven Development
 Here is a great feature for TDD lovers: it is possible to configure the plugin to persist in memory and reduce the test latency more than half.
 ```

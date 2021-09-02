@@ -5,15 +5,15 @@ import akka.persistence.PersistentRepr
 import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.ActorAttributes
 import akka.stream.scaladsl.{Flow, Source}
-import org.nullvector.{Fields, ReactiveMongoPlugin}
 import org.nullvector.ReactiveMongoDriver.QueryType
+import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.akkastream.cursorProducer
-import reactivemongo.api.{Cursor, CursorProducer}
+import reactivemongo.api.CursorProducer
 import reactivemongo.api.bson._
 import reactivemongo.api.bson.collection.BSONCollection
 
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 trait EventsQueries
     extends akka.persistence.query.scaladsl.EventsByTagQuery
@@ -36,40 +36,7 @@ trait EventsQueries
       }
     }
 
-  private def docsToEnvelop(
-      docs: Seq[BSONDocument]
-  ): Future[Seq[EventEnvelope]] = {
-    val (offsets, reps) = docs.map { doc =>
-      val event         = doc.getAsOpt[BSONDocument](Fields.events).get
-      val offset        = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
-      val payload       = event.getAsOpt[BSONDocument](Fields.payload).get
-      val manifest      = event.getAsOpt[String](Fields.manifest).get
-      val sequence      = event.getAsOpt[Long](Fields.sequence).get
-      val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
-      offset -> PersistentRepr(payload, sequence, persistenceId, manifest)
-    }.unzip
-    serializer
-      .deserialize(reps)
-      .map(offsets zip _)
-      .map(
-        _.map(offsetRep =>
-          EventEnvelope(
-            offsetRep._1,
-            offsetRep._2.persistenceId,
-            offsetRep._2.sequenceNr,
-            offsetRep._2.payload,
-            offsetRep._1.id.time
-          )
-        )
-      )
-
-  }
-
-  override def eventsByPersistenceId(
-      persistenceId: String,
-      fromSequenceNr: Long,
-      toSequenceNr: Long
-  ): Source[EventEnvelope, NotUsed] = {
+  override def eventsByPersistenceId(persistenceId: String, fromSequenceNr: Long, toSequenceNr: Long): Source[EventEnvelope, NotUsed] = {
     Source
       .fromGraph(
         new PullerGraph[EventEnvelope, (Long, Long)](
@@ -107,18 +74,24 @@ trait EventsQueries
       .via(docs2EnvelopeFlow)
   }
 
-  override def eventsByTag(
-      tag: String,
-      offset: Offset
+  override def eventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] =
+    eventsByTags(Seq(tag), offset, BSONDocument.empty, None, defaultRefreshInterval)
+
+  override def eventsByTags(
+      tags: Seq[String],
+      offset: Offset,
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument],
+      refreshInterval: FiniteDuration
   ): Source[EventEnvelope, NotUsed] =
     Source
       .fromGraph(
         new PullerGraph[EventEnvelope, Offset](
           offset,
-          defaultRefreshInterval,
+          refreshInterval,
           _.offset,
           greaterOffsetOf,
-          offset => currentEventsByTag(tag, offset)
+          offset => eventsByTagQuery(tags, offset, eventFilter, filterHint)
         )
       )
       .withAttributes(
@@ -126,47 +99,42 @@ trait EventsQueries
       )
       .mapConcat(identity)
 
-  /*
-   * Query events that have a specific tag. Those events matching target tags would
-   * be serialized depending on Document `manifest` field and events serializer that are provided.
-   */
-  override def currentEventsByTag(
-      tag: String,
-      offset: Offset
-  ): Source[EventEnvelope, NotUsed] = {
+  /** Query events that have a specific tag. Those events matching target tags would be serialized depending on Document `manifest` field
+    * and events serializer that are provided.
+    */
+  override def currentEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     currentEventsByTags(Seq(tag), offset)
   }
 
-  /*
-   * Same as  [[EventsQueries#currentEventsByTag]] but events aren't serialized, instead
-   * the `EventEnvelope` will contain the raw `BSONDocument`
-   */
-  override def currentRawEventsByTag(
-      tag: String,
-      offset: Offset
-  ): Source[EventEnvelope, NotUsed] = {
+  /** Same as [[EventsQueries#currentEventsByTag]] but events aren't serialized, instead the `EventEnvelope` will contain the raw
+    * `BSONDocument`
+    */
+  override def currentRawEventsByTag(tag: String, offset: Offset): Source[EventEnvelope, NotUsed] = {
     currentRawEventsByTag(Seq(tag), offset)
   }
 
-  override def currentRawEventsByTag(
-      tags: Seq[String],
-      offset: Offset
-  ): Source[EventEnvelope, NotUsed] = {
+  override def currentRawEventsByTag(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
     implicit val raw: (BSONDocument, BSONDocument) => Future[BSONDocument] =
       (_, rawPayload) => Future(rawPayload)
-    eventsByTagQuery(tags, offset)
+    eventsByTagQuery(tags, offset, BSONDocument.empty, None)
   }
 
-  override def currentEventsByTags(
-      tags: Seq[String],
-      offset: Offset
-  ): Source[EventEnvelope, NotUsed] = {
-    eventsByTagQuery(tags, offset)
+  override def currentEventsByTags(tags: Seq[String], offset: Offset): Source[EventEnvelope, NotUsed] = {
+    eventsByTagQuery(tags, offset, BSONDocument.empty, None)
   }
 
-  def eventsByTagQuery(
+  override def currentEventsByTag(
+      tag: String,
+      offset: Offset,
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument]
+  ): Source[EventEnvelope, NotUsed] = eventsByTagQuery(Seq(tag), offset, eventFilter, filterHint)
+
+  private def eventsByTagQuery(
       tags: Seq[String],
-      offset: Offset
+      offset: Offset,
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument]
   ): Source[EventEnvelope, NotUsed] = {
     Source
       .future(rxDriver.journals(collectionNames))
@@ -175,7 +143,7 @@ trait EventsQueries
       )
       .mapConcat(identity)
       .splitWhen(_ => true)
-      .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags))
+      .flatMapConcat(buildFindEventsByTagsQuery(_, offset, tags, eventFilter, filterHint))
       .mergeSubstreamsWithParallelism(amountOfCores)
       .via(docs2EnvelopeFlow)
   }
@@ -188,25 +156,23 @@ trait EventsQueries
   private def buildFindEventsByTagsQuery(
       collection: BSONCollection,
       offset: Offset,
-      tags: Seq[String]
+      tags: Seq[String],
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument]
   ) = {
-    def query(field: String) = BSONDocument(
-      field -> BSONDocument("$in" -> tags)
-    )
-
+    def queryTagsIn(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
     import collection.AggregationFramework._
 
     val filterByOffsetExp              = filterByOffset(offset)
     val stages: List[PipelineOperator] = List(
-      Match(query(Fields.tags) ++ filterByOffsetExp),
+      Match(queryTagsIn(Fields.tags) ++ filterByOffsetExp ++ eventFilter),
       UnwindField(Fields.events),
-      Match(query(s"${Fields.events}.${Fields.tags}"))
+      Match(queryTagsIn(s"${Fields.events}.${Fields.tags}") ++ eventFilter)
     )
-    val hint                           = filterByOffsetExp match {
-      case BSONDocument.empty =>
-        Some(collection.hint(BSONDocument(Fields.tags -> 1)))
-      case _                  =>
-        Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1)))
+    val hint                           = filterByOffsetExp -> filterHint match {
+      case (_, Some(aFilterHint))  => Some(collection.hint(aFilterHint))
+      case (BSONDocument.empty, _) => Some(collection.hint(BSONDocument(Fields.tags -> 1)))
+      case _                       => Some(collection.hint(BSONDocument("_id" -> 1, Fields.tags -> 1)))
     }
 
     rxDriver.explainAgg(collection)(QueryType.EventsByTag, stages, hint)
@@ -223,9 +189,7 @@ trait EventsQueries
 
     aggregate
       .documentSource()
-      .withAttributes(
-        ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName)
-      )
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
   }
 
   private def buildFindEventsByIdQuery(
@@ -253,6 +217,32 @@ trait EventsQueries
       .documentSource()
       .withAttributes(
         ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName)
+      )
+  }
+
+  private def docsToEnvelop(docs: Seq[BSONDocument]): Future[Seq[EventEnvelope]] = {
+    val (offsets, reps) = docs.map { doc =>
+      val event         = doc.getAsOpt[BSONDocument](Fields.events).get
+      val offset        = ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
+      val payload       = event.getAsOpt[BSONDocument](Fields.payload).get
+      val manifest      = event.getAsOpt[String](Fields.manifest).get
+      val sequence      = event.getAsOpt[Long](Fields.sequence).get
+      val persistenceId = event.getAsOpt[String](Fields.persistenceId).get
+      offset -> PersistentRepr(payload, sequence, persistenceId, manifest)
+    }.unzip
+    serializer
+      .deserialize(reps)
+      .map(offsets zip _)
+      .map(
+        _.map(offsetRep =>
+          EventEnvelope(
+            offsetRep._1,
+            offsetRep._2.persistenceId,
+            offsetRep._2.sequenceNr,
+            offsetRep._2.payload,
+            offsetRep._1.id.time
+          )
+        )
       )
   }
 

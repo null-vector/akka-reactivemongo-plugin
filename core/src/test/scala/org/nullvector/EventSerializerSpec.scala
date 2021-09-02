@@ -1,13 +1,15 @@
 package org.nullvector
 
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
-import akka.actor.{ActorRef, ActorSystem, ExtendedActorSystem}
+import akka.actor.{ActorSystem, ExtendedActorSystem}
 import akka.persistence.PersistentRepr
 import akka.persistence.journal.{EventSeq, Tagged}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.nullvector.EventSerializerSpec.{AnEvent, AnEventEventAdapter, OtherLegacyEvent, SomeLegacyEvent}
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.{BSON, BSONDocument, BSONDocumentHandler, Macros}
 
 import scala.collection.immutable._
@@ -17,7 +19,7 @@ import scala.concurrent.duration._
 class EventSerializerSpec()
     extends TestKit(ActorSystem("ReactiveMongoPlugin"))
     with ImplicitSender
-    with FlatSpecLike
+    with AnyFlatSpecLike
     with Matchers
     with BeforeAndAfterAll {
 

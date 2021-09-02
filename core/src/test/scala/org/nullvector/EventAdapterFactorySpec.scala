@@ -7,27 +7,14 @@ import org.nullvector.domain._
 import org.nullvector.domain.category.MainCategory.{BranchCategory2, RootCategory2, TerminalCategory2}
 import org.nullvector.domain.planets._
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.scalatest.Matchers._
-import org.scalatest._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.MacroConfiguration.Aux
-import reactivemongo.api.bson.{
-  BSON,
-  BSONDocument,
-  BSONDocumentReader,
-  BSONInteger,
-  BSONReader,
-  BSONString,
-  BSONValue,
-  BSONWriter,
-  MacroConfiguration,
-  MacroOptions,
-  Macros,
-  TypeNaming
-}
+import reactivemongo.api.bson._
 
 import scala.util.{Success, Try}
 
-class EventAdapterFactorySpec extends FlatSpec {
+class EventAdapterFactorySpec extends AnyFlatSpec with Matchers {
 
   it should "create a complex mapping" in {
     val eventAdapter = EventAdapterFactory.adapt[A]("Aed")
@@ -215,8 +202,8 @@ class EventAdapterFactorySpec extends FlatSpec {
 
   it should "value class mapping" in {
     val valueMap = EventAdapterFactory.valueMappingOf[OrderId]
-    valueMap.writeTry(new OrderId(24556)).get shouldBe BSONInteger(24556)
-    valueMap.readTry(BSONInteger(24556)).get shouldBe new OrderId(24556)
+    valueMap.writeTry(OrderId(24556)).get shouldBe BSONInteger(24556)
+    valueMap.readTry(BSONInteger(24556)).get shouldBe OrderId(24556)
   }
 
   it should "value class in product" in {

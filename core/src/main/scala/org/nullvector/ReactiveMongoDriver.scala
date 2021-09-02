@@ -2,7 +2,6 @@ package org.nullvector
 
 import akka.Done
 import akka.actor.{ActorRef, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider, Props}
-import akka.actor.typed.scaladsl.adapter._
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.QueryType.QueryType
@@ -118,11 +117,9 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     }
   }
 
-  def explainAgg(collection: BSONCollection)(
-      queryType: QueryType.QueryType,
-      stages: List[collection.PipelineOperator],
-      hint: Option[collection.Hint]
-  ) = {
+  def explainAgg(
+      collection: BSONCollection
+  )(queryType: QueryType.QueryType, stages: List[collection.PipelineOperator], hint: Option[collection.Hint]) = {
     if (shouldExplain(queryType)) {
       collection
         .aggregatorContext[BSONDocument](stages, explain = true, hint = hint)

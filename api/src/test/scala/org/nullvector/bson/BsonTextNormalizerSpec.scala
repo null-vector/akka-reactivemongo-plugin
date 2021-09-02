@@ -1,12 +1,12 @@
 package org.nullvector.bson
 
-import org.scalatest.{FlatSpec, Matchers}
-import play.api.libs.json.Json
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.BSONDocument
 
 import java.time.LocalDate
 
-class BsonTextNormalizerSpec extends FlatSpec with Matchers {
+class BsonTextNormalizerSpec extends AnyFlatSpec with Matchers {
 
   it should """ idk """ in {
 

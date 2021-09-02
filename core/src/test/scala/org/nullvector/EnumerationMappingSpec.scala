@@ -3,11 +3,12 @@ package org.nullvector
 import org.nullvector.domain.Money.Currency
 import org.nullvector.domain._
 import org.scalatest._
+import org.scalatest.flatspec.AnyFlatSpec
 import reactivemongo.api.bson.{BSON, BSONDocumentHandler, BSONReader, BSONString, BSONValue, BSONWriter, Macros}
 
 import scala.util.Try
 
-class EnumerationMappingSpec extends FlatSpec {
+class EnumerationMappingSpec extends AnyFlatSpec {
 
   it should "create a mapping for enumeration" in {
 

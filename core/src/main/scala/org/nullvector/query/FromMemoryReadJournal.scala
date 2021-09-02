@@ -9,6 +9,7 @@ import akka.stream.scaladsl.Source
 import org.nullvector.PersistInMemory
 import org.nullvector.PersistInMemory.EventWithOffset
 import org.nullvector.typed.ReactiveMongoEventSerializer
+import reactivemongo.api.bson.BSONDocument
 
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -146,4 +147,29 @@ class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoSc
 
   override def persistenceIds(): Source[String, NotUsed] = ???
 
+  /** Let a fine grained filter on event directly from Mongo database. WARNING: Using additional filter may cause a full scan collection or
+    * index.
+    *
+    * @param tag
+    *   the tagged event
+    * @param offset
+    *   from start reading
+    * @param eventFilter
+    *   a document filter for events
+    * @return
+    */
+  override def currentEventsByTag(
+      tag: String,
+      offset: Offset,
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument]
+  ): Source[EventEnvelope, NotUsed] = ???
+
+  override def eventsByTags(
+      tags: Seq[String],
+      offset: Offset,
+      eventFilter: BSONDocument,
+      filterHint: Option[BSONDocument],
+      refreshInterval: FiniteDuration
+  ): Source[EventEnvelope, NotUsed] = ???
 }

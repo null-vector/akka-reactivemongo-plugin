@@ -3,7 +3,6 @@ package org.nullvector.query
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.persistence.query._
 import org.nullvector.UnderlyingPersistenceFactory
-import org.nullvector.snapshot.{InMemorySnapshotStore, ReactiveMongoSnapshotImpl}
 
 object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProvider] with ExtensionIdProvider {
 
@@ -22,8 +21,13 @@ class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJour
   override val scaladslReadJournal: ReactiveMongoScalaReadJournal =
     createUnderlyingFactory(Nil)
 
-  def readJournalFor(collectionNames: List[String]) = createUnderlyingFactory(
-    collectionNames
+  /** Creates a ReadJournal that apply queries only on given entities
+    * @param entitiesNames
+    *   these names will be mapped to MongoDB collections.
+    * @return
+    */
+  def readJournalFor(entitiesNames: List[String]): ReactiveMongoScalaReadJournal = createUnderlyingFactory(
+    entitiesNames
   )
 
   private def createUnderlyingFactory(names: List[String]) = {

@@ -1,9 +1,11 @@
 package org.nullvector.query
 
+import akka.NotUsed
 import akka.actor.ExtendedActorSystem
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
-import akka.persistence.query.{NoOffset, Offset}
+import akka.persistence.query.{EventEnvelope, NoOffset, Offset}
 import akka.stream.Materializer
+import akka.stream.scaladsl.Source
 import org.nullvector.ReactiveMongoDriver
 import org.nullvector.typed.ReactiveMongoEventSerializer
 import reactivemongo.api.bson._
@@ -28,7 +30,7 @@ class ReactiveMongoScalaReadJournalImpl(
   protected implicit lazy val materializer: Materializer      =
     Materializer.matFromSystem(system)
 
-  protected val defaultRefreshInterval: FiniteDuration =
+  override val defaultRefreshInterval: FiniteDuration =
     system.settings.config
       .getDuration(
         "akka-persistence-reactivemongo.read-journal.refresh-interval",
@@ -43,4 +45,5 @@ class ReactiveMongoScalaReadJournalImpl(
       case NoOffset | _                 => BSONDocument.empty
     }
   }
+
 }

@@ -1,13 +1,14 @@
 package org.nullvector.util
 
 import org.nullvector.util.TimeoutPromise.PromiseTimeoutException
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.util.Success
 
-class TimeoutPromiseSpec extends FlatSpec with Matchers {
+class TimeoutPromiseSpec extends AnyFlatSpec with Matchers {
 
   import scala.concurrent.ExecutionContext.Implicits._
 

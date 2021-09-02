@@ -7,7 +7,9 @@ import akka.testkit.{ImplicitSender, TestKitBase}
 import com.typesafe.config.ConfigFactory
 import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.nullvector.{EventAdapter, Fields, ReactiveMongoDriver}
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import reactivemongo.api.bson.{BSONDocument, Macros}
 import util.Collections
 
@@ -15,7 +17,7 @@ import java.util.Date
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class ReactiveMongoSnapshotSpec() extends TestKitBase with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
+class ReactiveMongoSnapshotSpec() extends TestKitBase with ImplicitSender with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   private lazy implicit val typedAs: typed.ActorSystem[Nothing] =
     typed.ActorSystem(Behaviors.empty, "ReactiveMongoPlugin")

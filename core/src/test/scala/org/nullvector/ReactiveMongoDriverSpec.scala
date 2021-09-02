@@ -2,7 +2,9 @@ package org.nullvector
 
 import akka.actor.ActorSystem
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.{AsyncDriver, DB}
 
@@ -10,7 +12,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.{Failure, Try}
 
-class ReactiveMongoDriverSpec() extends FlatSpec with Matchers with BeforeAndAfterAll {
+class ReactiveMongoDriverSpec() extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
   private val system: ActorSystem                   = ActorSystem()
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   protected val rxDriver: ReactiveMongoDriver       = ReactiveMongoDriver(system)

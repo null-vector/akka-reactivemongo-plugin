@@ -12,11 +12,14 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.nullvector.journal.ReactiveMongoJournalImpl
 import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.nullvector.{EventAdapter, ReactiveMongoDriver}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.nullvector.{EventAdapter, EventAdapterFactory, ReactiveMongoDriver}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.Collections._
 
+import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration._
@@ -25,7 +28,7 @@ import scala.util.Random
 import scala.util.matching.Regex
 
 class ReactiveMongoReadJournalSpec()
-    extends FlatSpec
+    extends AnyFlatSpec
     with TestKitBase
     with ImplicitSender
     with Matchers
@@ -33,23 +36,17 @@ class ReactiveMongoReadJournalSpec()
     with BeforeAndAfterEach {
 
   lazy val config: Config                                = ConfigFactory
-    .parseString(
-      "akka-persistence-reactivemongo.persistence-id-separator = \"\""
-    )
+    .parseString("akka-persistence-reactivemongo.persistence-id-separator = \"\"")
     .withFallback(ConfigFactory.load())
-  implicit lazy val typedSystem: typed.ActorSystem[Any]  =
-    typed.ActorSystem[Any](Behaviors.empty, "ReactiveMongoPlugin", config)
+  implicit lazy val typedSystem: typed.ActorSystem[Any]  = typed.ActorSystem[Any](Behaviors.empty, "ReactiveMongoPlugin", config)
   override implicit lazy val system                      = typedSystem.classicSystem
   implicit lazy val dispatcher: ExecutionContextExecutor = system.dispatcher
   lazy val rxDriver: ReactiveMongoDriver                 = ReactiveMongoDriver(system)
-  val reactiveMongoJournalImpl: ReactiveMongoJournalImpl =
-    new ReactiveMongoJournalImpl(ConfigFactory.load(), system)
-
-  implicit val materializer: Materializer        = Materializer.matFromSystem(system)
-  val readJournal: ReactiveMongoScalaReadJournal =
-    ReactiveMongoJournalProvider(system).readJournalFor(Nil)
-  private val serializer                         = ReactiveMongoEventSerializer(system.toTyped)
-  serializer.addAdapter(new SomeEventAdapter())
+  val reactiveMongoJournalImpl: ReactiveMongoJournalImpl = new ReactiveMongoJournalImpl(ConfigFactory.load(), system)
+  implicit val materializer: Materializer                = Materializer.matFromSystem(system)
+  val readJournal: ReactiveMongoScalaReadJournal         = ReactiveMongoJournalProvider(system).readJournalFor(Nil)
+  private val serializer                                 = ReactiveMongoEventSerializer(system.toTyped)
+  serializer.addAdapters(Seq(new SomeEventAdapter(), EventAdapterFactory.adapt[SomeEventWithProperty]("SomeEventWithProperty", Set("TAG"))))
 
   override def beforeEach() = {
     dropAll(rxDriver)
@@ -114,6 +111,67 @@ class ReactiveMongoReadJournalSpec()
       println(System.currentTimeMillis())
       envelopes.size shouldBe 350
     }
+  }
+
+  it should "Events by tag from NoOffset with Filter" in {
+    val prefixReadColl = "ReadCollection_A_F"
+    Await.result(
+      Source(1 to 10)
+        .mapAsync(amountOfCores) { idx =>
+          val pId = s"${prefixReadColl}_${UUID.randomUUID()}"
+          reactiveMongoJournalImpl.asyncWriteMessages(
+            (1 to 50)
+              .grouped(3)
+              .map(group =>
+                AtomicWrite(
+                  group
+                    .map(jdx => PersistentRepr(payload = SomeEventWithProperty("TAG", jdx.toString), persistenceId = pId, sequenceNr = jdx))
+                )
+              )
+              .toList
+          )
+        }
+        .runWith(Sink.ignore),
+      14.seconds
+    )
+
+    {
+      val future = readJournal.currentEventsByTag("TAG", NoOffset, BSONDocument("events.p.customerId" -> "5"), None).runWith(Sink.seq)
+      Await.result(future, 1.second).size shouldBe 10
+    }
+  }
+
+  "from infinite source" should "reads Events by tag from NoOffset with Filter" in {
+    val prefixReadColl = "ReadCollection_F_Inf"
+    val counter        = new AtomicInteger(0)
+    readJournal
+      .eventsByTags(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> "5"), None, 1.millis)
+      .map(_ => (counter.incrementAndGet()))
+      .run()
+
+    Await.result(
+      Source(1 to 10)
+        .mapAsync(amountOfCores) { _ =>
+          Thread.sleep(10)
+          val pId = s"${prefixReadColl}_${UUID.randomUUID()}"
+          reactiveMongoJournalImpl.asyncWriteMessages(
+            (1 to 50)
+              .grouped(3)
+              .map(group =>
+                AtomicWrite(
+                  group
+                    .map(jdx => PersistentRepr(payload = SomeEventWithProperty("TAG", jdx.toString), persistenceId = pId, sequenceNr = jdx))
+                )
+              )
+              .toList
+          )
+        }
+        .run(),
+      14.seconds
+    )
+
+    Thread.sleep(50)
+    counter.get() shouldBe 10
   }
 
   it should "Raw events by tag from NoOffset" in {
@@ -471,6 +529,7 @@ class ReactiveMongoReadJournalSpec()
   }
 
   case class SomeEvent(name: String, price: Double)
+  case class SomeEventWithProperty(name: String, customerId: String)
 
   class SomeEventAdapter extends EventAdapter[SomeEvent] {
 

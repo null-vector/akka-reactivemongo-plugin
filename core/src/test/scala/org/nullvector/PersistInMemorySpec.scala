@@ -1,6 +1,5 @@
 package org.nullvector
 
-import java.util.concurrent.atomic.AtomicInteger
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, BehaviorTestKit, TestInbox}
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
@@ -11,15 +10,17 @@ import com.typesafe.config.ConfigFactory
 import org.nullvector.journal.InMemoryAsyncWriteJournal
 import org.nullvector.snapshot.InMemorySnapshotStore
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.BSONDocument
 
+import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor, Promise}
 import scala.util.Random
-import collection.immutable.Seq
 
-class PersistInMemorySpec extends FlatSpec with Matchers {
+class PersistInMemorySpec extends AnyFlatSpec with Matchers {
 
   import org.nullvector.PersistInMemory._
 

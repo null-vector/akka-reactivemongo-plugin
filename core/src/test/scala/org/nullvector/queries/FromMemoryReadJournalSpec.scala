@@ -1,6 +1,5 @@
-package org.nullvector
+package org.nullvector.queries
 
-import java.util.concurrent.atomic.AtomicInteger
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.{ActorSystem => TypedActorSystem}
@@ -9,17 +8,20 @@ import akka.stream.KillSwitches
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.typesafe.config.ConfigFactory
 import org.nullvector.PersistInMemory.EventEntry
-import org.nullvector.query.{ObjectIdOffset, ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
+import org.nullvector.query.{ReactiveMongoJournalProvider, ReactiveMongoScalaReadJournal, RefreshInterval}
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.scalatest.{FlatSpec, Matchers}
+import org.nullvector.{EventAdapterFactory, PersistInMemory}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.BSONDocument
 
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContextExecutor, Future, Promise}
+import scala.concurrent.{Await, ExecutionContextExecutor, Promise}
 import scala.util.Random
 
-class FromMemoryReadJournalSpec extends FlatSpec with Matchers {
+class FromMemoryReadJournalSpec extends AnyFlatSpec with Matchers {
   val config = ConfigFactory.parseString(
     """
       |akka.persistence.journal.plugin = "akka-persistence-reactivemongo-journal"

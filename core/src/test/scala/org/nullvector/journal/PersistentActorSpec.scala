@@ -9,7 +9,9 @@ import akka.stream.scaladsl.{Sink, Source}
 import akka.testkit.{ImplicitSender, TestKitBase}
 import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.nullvector.{EventAdapter, EventAdapterFactory, ReactiveMongoDriver}
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import reactivemongo.api.bson.{BSONDocument, BSONDocumentHandler, Macros}
 import util.AutoRestartFactory
 
@@ -18,7 +20,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.Random
 
-class PersistentActorSpec() extends TestKitBase with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
+class PersistentActorSpec() extends TestKitBase with ImplicitSender with AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   override lazy implicit val system =
     typed.ActorSystem(Behaviors.empty, "ReactiveMongoPlugin").classicSystem
@@ -187,8 +189,7 @@ class PersistentActorSpec() extends TestKitBase with ImplicitSender with WordSpe
         }
 
       case MultiCommand(action1, action2, action3) =>
-        persistAll(Seq(AnEvent(action1), AnEvent(action2), AnEvent(action3))) { _ =>
-        }
+        persistAll(Seq(AnEvent(action1), AnEvent(action2), AnEvent(action3))) { _ => }
         deferAsync(()) { _ =>
           state = Some(action3)
           sender() ! Done
