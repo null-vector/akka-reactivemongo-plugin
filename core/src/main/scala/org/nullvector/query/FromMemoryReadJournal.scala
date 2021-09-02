@@ -159,7 +159,7 @@ class FromMemoryReadJournal(actorSystem: ActorSystem[_]) extends ReactiveMongoSc
     * @return
     */
   override def currentEventsByTag(
-      tag: String,
+      tag: Seq[String],
       offset: Offset,
       eventFilter: BSONDocument,
       filterHint: Option[BSONDocument]

@@ -22,7 +22,7 @@ trait CustomReadOps {
     * @return
     */
   def currentEventsByTag(
-      tag: String,
+      tag: Seq[String],
       offset: Offset,
       eventFilter: BSONDocument,
       filterHint: Option[BSONDocument]

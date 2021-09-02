@@ -117,8 +117,8 @@ If you want different refresh intervals from different query, you can add a `Ref
     .addAttributes(RefreshInterval(700.millis))
     .runWith(Sink.foreach(println))
 ```
-# Filter Events by some Event's Attribute
-## From regular stream
+## Filter Events by some Event's Attribute
+### From regular stream
 ```scala
 val readJournal = ReactiveMongoJournalProvider(system).readJournalFor(Seq("Orders"))
 readJournal
@@ -126,7 +126,7 @@ readJournal
   .mapAsyc(envelope => someEventualWork(envelope))
   .run()
 ```
-## From non-termination stream
+### From non-termination stream
 ```scala
 val readJournal = ReactiveMongoJournalProvider(system).readJournalFor(Seq("Orders"))
 readJournal

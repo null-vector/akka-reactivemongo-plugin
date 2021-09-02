@@ -124,11 +124,11 @@ trait EventsQueries
   }
 
   override def currentEventsByTag(
-      tag: String,
+      tag: Seq[String],
       offset: Offset,
       eventFilter: BSONDocument,
       filterHint: Option[BSONDocument]
-  ): Source[EventEnvelope, NotUsed] = eventsByTagQuery(Seq(tag), offset, eventFilter, filterHint)
+  ): Source[EventEnvelope, NotUsed] = eventsByTagQuery(tag, offset, eventFilter, filterHint)
 
   private def eventsByTagQuery(
       tags: Seq[String],

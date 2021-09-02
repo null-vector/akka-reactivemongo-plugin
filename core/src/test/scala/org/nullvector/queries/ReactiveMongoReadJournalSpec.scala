@@ -136,7 +136,7 @@ class ReactiveMongoReadJournalSpec()
     )
 
     {
-      val future = readJournal.currentEventsByTag("TAG", NoOffset, BSONDocument("events.p.customerId" -> "5"), None).runWith(Sink.seq)
+      val future = readJournal.currentEventsByTag(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> "5"), None).runWith(Sink.seq)
       Await.result(future, 1.second).size shouldBe 10
     }
   }
