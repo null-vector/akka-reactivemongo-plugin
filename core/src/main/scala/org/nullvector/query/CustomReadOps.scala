@@ -21,7 +21,7 @@ trait CustomReadOps {
     *   an optional hint index to use with filter
     * @return
     */
-  def currentEventsByTag(
+  def currentEventsByTags(
       tag: Seq[String],
       offset: Offset,
       eventFilter: BSONDocument,

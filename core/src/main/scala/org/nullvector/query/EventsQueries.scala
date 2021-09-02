@@ -123,7 +123,7 @@ trait EventsQueries
     eventsByTagQuery(tags, offset, BSONDocument.empty, None)
   }
 
-  override def currentEventsByTag(
+  override def currentEventsByTags(
       tag: Seq[String],
       offset: Offset,
       eventFilter: BSONDocument,

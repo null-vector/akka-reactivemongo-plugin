@@ -136,7 +136,7 @@ class ReactiveMongoReadJournalSpec()
     )
 
     {
-      val future = readJournal.currentEventsByTag(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> "5"), None).runWith(Sink.seq)
+      val future = readJournal.currentEventsByTags(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> "5"), None).runWith(Sink.seq)
       Await.result(future, 1.second).size shouldBe 10
     }
   }
@@ -270,9 +270,9 @@ class ReactiveMongoReadJournalSpec()
         .run(),
       14.seconds
     )
-    Thread.sleep(1500)
+    Thread.sleep(200)
     val offset       = ObjectIdOffset.newOffset()
-    Thread.sleep(1000)
+    Thread.sleep(200)
     Await.ready(
       Source(1 to 10)
         .mapAsync(amountOfCores) { idx =>
@@ -292,7 +292,7 @@ class ReactiveMongoReadJournalSpec()
         .run(),
       14.seconds
     )
-    Thread.sleep(1500)
+    Thread.sleep(200)
     val eventualDone =
       readJournal.currentEventsByTag("event_tag_1", offset).runWith(Sink.seq)
     val envelopes    = Await.result(eventualDone, 14.seconds)
@@ -400,11 +400,9 @@ class ReactiveMongoReadJournalSpec()
       val pId       = s"$prefixReadColl-123"
       readJournal
         .eventsByPersistenceId(pId, 0L, Long.MaxValue)
-        .addAttributes(RefreshInterval(5.millis))
+        .addAttributes(RefreshInterval(1.millis))
         .runWith(Sink.foreach(e => envelopes.add(e)))
-        .recover { case e: Throwable =>
-          e.printStackTrace()
-        }
+
       Await.ready(
         Source(1 to 10)
           .mapAsync(amountOfCores) { idx =>
@@ -423,7 +421,6 @@ class ReactiveMongoReadJournalSpec()
           .runWith(Sink.ignore),
         14.seconds
       )
-      Thread.sleep(1000)
       Await.ready(
         Source(11 to 20)
           .mapAsync(amountOfCores) { idx =>
@@ -442,7 +439,7 @@ class ReactiveMongoReadJournalSpec()
           .runWith(Sink.ignore),
         14.seconds
       )
-      Thread.sleep(1000)
+      Thread.sleep(100)
       envelopes.peek().persistenceId shouldBe pId
       envelopes.size shouldBe 20
     }

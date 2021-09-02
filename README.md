@@ -122,7 +122,7 @@ If you want different refresh intervals from different query, you can add a `Ref
 ```scala
 val readJournal = ReactiveMongoJournalProvider(system).readJournalFor(Seq("Orders"))
 readJournal
-  .currentEventsByTag("TAG", NoOffset, BSONDocument("events.p.customerId" -> customerId), None)
+  .currentEventsByTags(Seq("TAG"), NoOffset, BSONDocument("events.p.customerId" -> customerId), None)
   .mapAsyc(envelope => someEventualWork(envelope))
   .run()
 ```
