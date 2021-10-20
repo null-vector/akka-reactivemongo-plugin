@@ -12,7 +12,7 @@ Add in your `build.sbt` the following lines:
 resolvers += "null-vector" at "https://nullvector.jfrog.io/artifactory/releases"
 ```
 ```scala
-libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.4.9"
+libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.6.0"
 ```
 
 ## Configuration
@@ -26,7 +26,10 @@ akka-persistence-reactivemongo {
 }
 ```
 See [Connect to a database](http://reactivemongo.org/releases/0.1x/documentation/tutorial/connect-database.html) for more information.
-
+### Configuration for DurableStateStore
+```
+akka.persistence.state.plugin = "akka-persistence-reactivemongo-crud"
+```
 ## Events Adapters
 Before save any event from your persistent actor it is needed to register the corresponding `EventAdapter`.
 ```scala

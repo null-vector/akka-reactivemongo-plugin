@@ -1,8 +1,8 @@
 lazy val scala213               = "2.13.6"
 lazy val scala300               = "3.0.0"
 lazy val supportedScalaVersions = List(scala213)
-lazy val akkaVersion            = "2.6.14"
-lazy val rxmongoVersion         = "1.0.6"
+lazy val akkaVersion            = "2.6.17"
+lazy val rxmongoVersion         = "1.0.7"
 
 publishArtifact := false
 publish         := {}
@@ -11,13 +11,13 @@ publishLocal    := {}
 lazy val commonSettings = Seq(
   name                                       := "akka-reactivemongo-plugin",
   organization                               := "null-vector",
-  version                                    := s"1.5.3",
+  version                                    := s"1.6.0",
   scalaVersion                               := scala213,
   crossScalaVersions                         := supportedScalaVersions,
   scalacOptions                              := Seq(
     "-encoding",
     "UTF-8",
-    "-target:jvm-1.8",
+    "-target:12",
     "-deprecation",
     "-language:experimental.macros",
     //    "-Ymacro-annotations",
@@ -32,11 +32,12 @@ lazy val commonSettings = Seq(
   resolvers += "Akka Maven Repository" at "https://akka.io/repository",
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence"         % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query"   % akkaVersion,
+  libraryDependencies += "com.typesafe.akka" %% "akka-persistence-typed"   % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-stream"              % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
   libraryDependencies += "org.typelevel"     %% "cats-core"                % "2.6.1",
-  libraryDependencies += "ch.qos.logback"     % "logback-classic"          % "1.2.5",
-  libraryDependencies += "joda-time"          % "joda-time"                % "2.10.10",
+  libraryDependencies += "ch.qos.logback"     % "logback-classic"          % "1.2.6",
+  libraryDependencies += "joda-time"          % "joda-time"                % "2.10.12",
   libraryDependencies += "org.reactivemongo" %% "reactivemongo"            % rxmongoVersion,
   libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion,
   libraryDependencies += "com.typesafe.play" %% "play-json"                % "2.9.2",
@@ -47,7 +48,11 @@ lazy val commonSettings = Seq(
   libraryDependencies += "org.scalatest"     %% "scalatest"                % "3.2.9"     % Test,
   libraryDependencies += "com.typesafe.akka" %% "akka-testkit"             % akkaVersion % Test,
   licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
-  coverageExcludedPackages                   := "<empty>;.*ReactiveMongoJavaReadJournal.*",
+  coverageExcludedPackages                   := Seq(
+    "<empty>",
+    ".*ReactiveMongoJavaReadJournal.*",
+    ".*ReactiveMongoDriver.*"
+  ).mkString(";"),
   Test / fork                                := true,
   Test / javaOptions += "-Xmx4G",
   Test / javaOptions += "-XX:+CMSClassUnloadingEnabled",

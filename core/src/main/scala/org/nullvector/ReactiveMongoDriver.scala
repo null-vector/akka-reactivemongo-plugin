@@ -52,21 +52,27 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
 
   def journalCollection(persistentId: String): Future[BSONCollection] = {
     val promise = Promise[BSONCollection]()
-    collections ! GetJournalCollectionNameFor(persistentId, promise)
+    collections ! GetJournalCollectionFor(persistentId, promise)
+    promise.future
+  }
+
+  def crudCollection(persistentId: String): Future[BSONCollection] = {
+    val promise = Promise[BSONCollection]()
+    collections ! GetCrudCollectionFor(persistentId, promise)
     promise.future
   }
 
   def snapshotCollection(persistentId: String): Future[BSONCollection] = {
     val promise = Promise[BSONCollection]()
-    collections ! GetSnapshotCollectionNameFor(persistentId, promise)
+    collections ! GetSnapshotCollectionFor(persistentId, promise)
     promise.future
   }
 
   def journals(
-      collectionNames: List[String] = Nil
+      entityNames: List[String] = Nil
   ): Future[List[BSONCollection]] = {
     val promise = Promise[List[BSONCollection]]()
-    collections ! GetJournals(promise, collectionNames)
+    collections ! GetJournals(promise, entityNames)
     promise.future
   }
 
