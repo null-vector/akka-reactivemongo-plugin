@@ -7,7 +7,7 @@ jobs:
   build:
     docker:
     # specify the version you desire here
-    - image: circleci/openjdk:8-jdk
+    - image: circleci/openjdk:13.0.2-jdk-buster
     - image: mongo
 
     # Specify service dependencies here if necessary
