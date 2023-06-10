@@ -7,8 +7,9 @@ import akka.persistence.state.scaladsl.{DurableStateStore, DurableStateUpdateSto
 import org.nullvector.ReactiveMongoDriver
 import org.nullvector.crud.ReactiveMongoCrud.Schema
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import reactivemongo.api.bson.BSONDocument
+import reactivemongo.api.bson.{BSONDateTime, BSONDocument}
 
+import java.time.{Clock, Instant}
 import scala.concurrent.{ExecutionContext, Future}
 
 object ReactiveMongoCrud {
@@ -18,15 +19,18 @@ object ReactiveMongoCrud {
     val payload       = "payload"
     val manifest      = "manifest"
     val revision      = "revision"
+    val created       = "created"
+    val updated       = "updated"
     val tags          = "tags"
   }
 }
 
-class ReactiveMongoCrud(system: ActorSystem[_]) extends DurableStateStore[Any] with DurableStateUpdateStore[Any] {
+class ReactiveMongoCrud(system: ActorSystem[?]) extends DurableStateStore[Any] with DurableStateUpdateStore[Any] {
   private implicit lazy val dispatcher: ExecutionContext =
     system.dispatchers.lookup(DispatcherSelector.fromConfig("akka-persistence-reactivemongo-dispatcher"))
   private val driver: ReactiveMongoDriver                = ReactiveMongoDriver(system)
   private val serializer: ReactiveMongoEventSerializer   = ReactiveMongoEventSerializer(system)
+  private val utcClock: Clock                            = Clock.systemUTC()
 
   override def getObject(persistenceId: String): Future[GetObjectResult[Any]] = {
     for {
@@ -39,11 +43,12 @@ class ReactiveMongoCrud(system: ActorSystem[_]) extends DurableStateStore[Any] w
                                serializer
                                  .deserialize(PersistentRepr(payload = payload, manifest = manifest))
                                  .map(rep => Some(rep.payload) -> revision)
-                             case None      => Future.successful(None, 1L)
+                             case None      => Future.successful(None, 0L)
                            }
     } yield GetObjectResult(found, revision)
   }
   override def upsertObject(persistenceId: String, revision: Long, value: Any, tag: String): Future[Done] = {
+    val nowBsonDateTime = BSONDateTime(Instant.now(utcClock).toEpochMilli)
     for {
       coll <- driver.crudCollection(persistenceId)
       rep  <- serializer.serialize(PersistentRepr(value))
@@ -51,12 +56,13 @@ class ReactiveMongoCrud(system: ActorSystem[_]) extends DurableStateStore[Any] w
                 .findAndUpdate(
                   BSONDocument(Schema.persistenceId -> persistenceId, Schema.revision -> (revision - 1)),
                   BSONDocument(
-                    "$set"                          -> BSONDocument(
+                    "$set"                          -> (BSONDocument(
                       Schema.payload  -> rep._1.payload.asInstanceOf[BSONDocument],
                       Schema.manifest -> rep._1.manifest,
                       Schema.revision -> revision,
-                      Schema.tags     -> rep._2
-                    )
+                      Schema.tags     -> rep._2,
+                      Schema.updated  -> nowBsonDateTime
+                    ) ++ (if (revision == 1) BSONDocument(Schema.created -> nowBsonDateTime) else BSONDocument()))
                   ),
                   upsert = true
                 )
@@ -66,6 +72,13 @@ class ReactiveMongoCrud(system: ActorSystem[_]) extends DurableStateStore[Any] w
     for {
       coll <- driver.crudCollection(persistenceId)
       _    <- coll.findAndRemove(BSONDocument(Schema.persistenceId -> persistenceId))
+    } yield Done
+  }
+
+  override def deleteObject(persistenceId: String, revision: Long): Future[Done] = {
+    for {
+      coll <- driver.crudCollection(persistenceId)
+      _    <- coll.findAndRemove(BSONDocument(Schema.persistenceId -> persistenceId, Schema.revision -> revision))
     } yield Done
   }
 }

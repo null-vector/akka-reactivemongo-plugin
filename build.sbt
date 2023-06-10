@@ -1,8 +1,8 @@
-lazy val scala213               = "2.13.6"
+lazy val scala213               = "2.13.11"
 lazy val scala300               = "3.0.0"
 lazy val supportedScalaVersions = List(scala213)
-lazy val akkaVersion            = "2.6.17"
-lazy val rxmongoVersion         = "1.0.7"
+lazy val akkaVersion            = "2.6.20"
+lazy val rxmongoVersion         = "1.0.10"
 
 publishArtifact := false
 publish         := {}
@@ -11,13 +11,14 @@ publishLocal    := {}
 lazy val commonSettings = Seq(
   name                                       := "akka-reactivemongo-plugin",
   organization                               := "null-vector",
-  version                                    := s"1.6.0",
+  version                                    := s"1.6.2",
   scalaVersion                               := scala213,
   crossScalaVersions                         := supportedScalaVersions,
   scalacOptions                              := Seq(
+    "-Xsource:3",
     "-encoding",
     "UTF-8",
-    "-target:12",
+    "-release:17",
     "-deprecation",
     "-language:experimental.macros",
     //    "-Ymacro-annotations",
@@ -55,7 +56,6 @@ lazy val commonSettings = Seq(
   ).mkString(";"),
   Test / fork                                := true,
   Test / javaOptions += "-Xmx4G",
-  Test / javaOptions += "-XX:+CMSClassUnloadingEnabled",
   Test / javaOptions += "-Dfile.encoding=UTF-8"
 )
 
@@ -65,9 +65,9 @@ lazy val core = (project in file("core"))
     commonSettings,
     publishTo                              := Some(
       "nullvector" at (if (isSnapshot.value)
-                         "https://nullvector.jfrog.io/artifactory/snapshots"
+                         "https://nullvectormirror.jfrog.io/artifactory/libs-snapshots"
                        else
-                         "https://nullvector.jfrog.io/artifactory/releases")
+                         "https://nullvectormirror.jfrog.io/artifactory/libs-release")
     ),
     credentials += Credentials(Path.userHome / ".jfrog" / "credentials"),
     Compile / packageDoc / publishArtifact := false,

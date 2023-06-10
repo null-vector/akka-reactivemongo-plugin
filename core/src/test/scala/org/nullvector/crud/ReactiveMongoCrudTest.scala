@@ -25,8 +25,7 @@ import scala.util.Random
 class ReactiveMongoCrudTest extends AsyncFlatSpec {
 
   implicit private val system: ActorSystem = ActorSystem("Crud")
-  val crud                                 = DurableStateStoreRegistry
-    .get(system)
+  val crud                                 = DurableStateStoreRegistry(system)
     .durableStateStoreFor[ReactiveMongoCrud](ReactiveMongoCrud.pluginId)
   private val driver: ReactiveMongoDriver  = ReactiveMongoDriver(system)
 
@@ -37,7 +36,7 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
 
   it should "insert an object" in {
     crud
-      .upsertObject(randomPersistenceId, 2, ChessBoard(Map("a1" -> "R")), "")
+      .upsertObject(randomPersistenceId, 1, ChessBoard(Map("a1" -> "R")), "")
       .map(_ shouldBe Done)
   }
 
@@ -57,13 +56,13 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
     val originalChessBoard = ChessBoard(Map("a1" -> "RB"))
     val updatedChessBoard  = originalChessBoard.copy(piecePositions = Map("4b" -> "KW"))
     for {
-      _       <- crud.upsertObject(pid, 35, originalChessBoard, "")
+      _       <- crud.upsertObject(pid, 1, originalChessBoard, "")
       result1 <- crud.getObject(pid)
-      _       <- crud.upsertObject(pid, 36, updatedChessBoard, "")
+      _       <- crud.upsertObject(pid, 2, updatedChessBoard, "")
       result2 <- crud.getObject(pid)
     } yield {
-      result1 shouldBe GetObjectResult(Some(originalChessBoard), 35)
-      result2 shouldBe GetObjectResult(Some(updatedChessBoard), 36)
+      result1 shouldBe GetObjectResult(Some(originalChessBoard), 1)
+      result2 shouldBe GetObjectResult(Some(updatedChessBoard), 2)
     }
   }
 
@@ -77,7 +76,7 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
       result2 <- crud.getObject(pid)
     } yield {
       result1 shouldBe GetObjectResult(Some(chessBoard), 35)
-      result2 shouldBe GetObjectResult(None, 1)
+      result2 shouldBe GetObjectResult(None, 0)
     }
   }
 
@@ -104,8 +103,8 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
       boardV2  <- chessBoardRef.ask(ChessBoardBehavior.GetBoard(_))
       resultV2 <- crud.getObject(PersistenceId("ChessBoard", chessBoardId).id)
     } yield {
-      resultV1 shouldBe GetObjectResult(Some(boardV1), 2L)
-      resultV2 shouldBe GetObjectResult(Some(boardV2), 3L)
+      resultV1 shouldBe GetObjectResult(Some(boardV1), 1L)
+      resultV2 shouldBe GetObjectResult(Some(boardV2), 2L)
     }
   }
 

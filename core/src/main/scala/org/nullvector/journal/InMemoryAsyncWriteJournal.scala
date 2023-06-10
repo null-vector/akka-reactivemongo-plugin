@@ -4,20 +4,20 @@ import akka.actor.ActorSystem
 import akka.persistence.{AtomicWrite, PersistentRepr}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
+import org.nullvector.PersistInMemory
 import org.nullvector.PersistInMemory.EventEntry
 import org.nullvector.typed.ReactiveMongoEventSerializer
-import org.nullvector.{PersistInMemory}
 import reactivemongo.api.bson.BSONDocument
 
 import scala.collection.immutable
-import scala.concurrent.Future
-import scala.util.{Success, Try}
+import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.util.Try
 
 class InMemoryAsyncWriteJournal(val system: ActorSystem) extends AsyncWriteJournalOps {
 
-  import akka.actor.typed.scaladsl.adapter._
+  import akka.actor.typed.scaladsl.adapter.*
 
-  private implicit val ec                                   = system.dispatcher
+  private implicit val ec: ExecutionContextExecutor         = system.dispatcher
   private implicit val materializer: Materializer           =
     Materializer.matFromSystem(system)
   private val eventSerializer: ReactiveMongoEventSerializer =

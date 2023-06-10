@@ -53,6 +53,8 @@ class ReactiveMongoReadJournalSpec()
     Await.result(rxDriver.journalCollection("j-0"), 1.second)
   }
 
+  behavior of "Read Journal"
+
   it should "Events by tag from NoOffset" in {
     val prefixReadColl = "ReadCollection_A"
 
@@ -439,7 +441,7 @@ class ReactiveMongoReadJournalSpec()
           .runWith(Sink.ignore),
         14.seconds
       )
-      Thread.sleep(100)
+      Thread.sleep(200)
       envelopes.peek().persistenceId shouldBe pId
       envelopes.size shouldBe 20
     }
@@ -450,14 +452,10 @@ class ReactiveMongoReadJournalSpec()
     val ids = new AtomicInteger()
     readJournal
       .persistenceIds()
-      .async
       .runWith(Sink.foreach(e => ids.incrementAndGet()))
-      .recover { case e: Throwable =>
-        e.printStackTrace()
-      }
     Await.ready(
       Source(1 to 10)
-        .mapAsync(10) { collId =>
+        .mapAsync(Runtime.getRuntime.availableProcessors()) { collId =>
           reactiveMongoJournalImpl.asyncWriteMessages((1 to 25).map { jIdx =>
             val pId = s"${prefixReadColl}_$collId-${Random.nextLong().abs}"
             AtomicWrite(
@@ -469,7 +467,7 @@ class ReactiveMongoReadJournalSpec()
             )
           })
         }
-        .runWith(Sink.ignore),
+        .run(),
       14.seconds
     )
     Thread.sleep(2000)
