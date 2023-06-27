@@ -1,8 +1,25 @@
 lazy val scala213               = "2.13.11"
-lazy val scala300               = "3.0.0"
+lazy val scala300               = "3.3.0"
 lazy val supportedScalaVersions = List(scala213)
 lazy val akkaVersion            = "2.6.20"
 lazy val rxmongoVersion         = "1.0.10"
+
+ThisBuild / scalaVersion       := scala213
+ThisBuild / version            := s"1.6.3"
+ThisBuild / crossScalaVersions := supportedScalaVersions
+ThisBuild / scalacOptions      := Seq(
+  "-Xsource:3",
+  "-release:17",
+  "-deprecation",
+  "-language:experimental.macros",
+  "-feature",
+  "-unchecked",
+  "-Werror",
+  "-language:implicitConversions",
+  "-language:postfixOps",
+  "-Ybackend-parallelism",
+  "6"
+)
 
 publishArtifact := false
 publish         := {}
@@ -11,42 +28,23 @@ publishLocal    := {}
 lazy val commonSettings = Seq(
   name                                       := "akka-reactivemongo-plugin",
   organization                               := "null-vector",
-  version                                    := s"1.6.2",
-  scalaVersion                               := scala213,
-  crossScalaVersions                         := supportedScalaVersions,
-  scalacOptions                              := Seq(
-    "-Xsource:3",
-    "-encoding",
-    "UTF-8",
-    "-release:17",
-    "-deprecation",
-    "-language:experimental.macros",
-    //    "-Ymacro-annotations",
-    "-feature",
-    "-unchecked",
-    "-language:implicitConversions",
-    "-language:postfixOps",
-    //"-Ypartial-unification",
-    "-Ybackend-parallelism",
-    "4"
-  ),
   resolvers += "Akka Maven Repository" at "https://akka.io/repository",
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence"         % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query"   % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-typed"   % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-stream"              % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
-  libraryDependencies += "org.typelevel"     %% "cats-core"                % "2.6.1",
-  libraryDependencies += "ch.qos.logback"     % "logback-classic"          % "1.2.6",
-  libraryDependencies += "joda-time"          % "joda-time"                % "2.10.12",
+  libraryDependencies += "org.typelevel"     %% "cats-core"                % "2.9.0",
+  libraryDependencies += "ch.qos.logback"     % "logback-classic"          % "1.4.7",
+  libraryDependencies += "joda-time"          % "joda-time"                % "2.12.5",
   libraryDependencies += "org.reactivemongo" %% "reactivemongo"            % rxmongoVersion,
   libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion,
-  libraryDependencies += "com.typesafe.play" %% "play-json"                % "2.9.2",
+  libraryDependencies += "com.typesafe.play" %% "play-json"                % "2.9.4",
   libraryDependencies += "org.scala-lang"     % "scala-reflect"            % scalaVersion.value,
 
   //libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
   libraryDependencies += "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test,
-  libraryDependencies += "org.scalatest"     %% "scalatest"                % "3.2.9"     % Test,
+  libraryDependencies += "org.scalatest"     %% "scalatest"                % "3.2.15"    % Test,
   libraryDependencies += "com.typesafe.akka" %% "akka-testkit"             % akkaVersion % Test,
   licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
   coverageExcludedPackages                   := Seq(

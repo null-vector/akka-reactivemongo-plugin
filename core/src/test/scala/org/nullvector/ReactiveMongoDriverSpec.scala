@@ -1,18 +1,21 @@
 package org.nullvector
 
+import akka.Done
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.flatspec.AsyncFlatSpec
 import org.scalatest.matchers.should.Matchers
 import reactivemongo.api.bson.BSONDocument
+import reactivemongo.api.indexes.IndexType.Ascending
 import reactivemongo.api.{AsyncDriver, DB}
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.{Failure, Try}
 
-class ReactiveMongoDriverSpec() extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
+class ReactiveMongoDriverSpec() extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
   private val system: ActorSystem                   = ActorSystem()
   private implicit val ec: ExecutionContextExecutor = system.dispatcher
   protected val rxDriver: ReactiveMongoDriver       = ReactiveMongoDriver(system)
@@ -29,22 +32,54 @@ class ReactiveMongoDriverSpec() extends AnyFlatSpec with Matchers with BeforeAnd
 
   rxDriver.withDatabaseProvider(databaseProvider)
 
+  behavior of "Reactive Mongo Drive"
+
   it should " use a custom database provider" in {
-    val eventualResult = rxDriver
+    rxDriver
       .journalCollection("Provided-1")
       .flatMap(_.insert(true).one(BSONDocument()))
-    Await.result(eventualResult, 6.second).n shouldBe 1
+      .map(_.n shouldBe 1)
   }
 
   it should " check health " in {
-    Await.result(rxDriver.health(), 10.second)
+    rxDriver.health().map(_ shouldBe Done)
   }
+
+  it should " Persistent Id Mapping " in {
+    val config      = ConfigFactory.parseString("akka-persistence-reactivemongo.persistence-id-separator = |")
+    val nameMapping = new DefaultCollectionNameMapping(config)
+
+    nameMapping.collectionNameOf("Entity|") shouldBe Some("Entity")
+    nameMapping.collectionNameOf("Entity|1") shouldBe Some("Entity")
+    nameMapping.collectionNameOf("Entity") shouldBe None
+  }
+
+  it should " get collection by entity name " in {
+    rxDriver
+      .crudCollectionOfEntity("AnEntity")
+      .map(_.name shouldBe "crud_AnEntity")
+  }
+
+//  it should " ensure crud indices " in {
+//    for {
+//      collection   <- rxDriver.crudCollectionOfEntity("AnEntity22")
+//      indices      <- collection.indexesManager.list()
+//      namesWithKeys = indices.flatMap(index => index.name.map((_, index.key, index.unique)))
+//    } yield namesWithKeys should contain.allElementsOf(
+//      Seq(
+//        ("pid_revision", Seq("pid" -> Ascending, "revision" -> Ascending), true),
+//        ("updated_tags", Seq("updated" -> Ascending, "tags" -> Ascending), false),
+//        ("updated", Seq("updated" -> Ascending), false),
+//        ("persistence_id", Seq("pid" -> Ascending), true),
+//        ("_id_", Seq("_id" -> Ascending), true)
+//      )
+//    )
+//  }
 
   it should " check health fail " in {
     rxDriver.withDatabaseProvider(new DatabaseProvider {
       override def database: Try[DB] = Failure(new Exception("BOM"))
     })
-
     an[Exception] shouldBe thrownBy(Await.result(rxDriver.health(), 1.second))
   }
 

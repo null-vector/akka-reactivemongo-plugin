@@ -13,7 +13,7 @@ import reactivemongo.api.DB
 import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.bson.collection.BSONCollection
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
@@ -43,7 +43,7 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
     system.dispatchers.lookup(ReactiveMongoPlugin.pluginDispatcherName)
   private implicit val timeout: Timeout             = Timeout(5.seconds)
 
-  import Collections._
+  import Collections.*
 
   private val collectionsProps: Props = Props(new Collections(system))
     .withDispatcher(ReactiveMongoPlugin.pluginDispatcherName)
@@ -59,6 +59,12 @@ class ReactiveMongoDriver(system: ExtendedActorSystem) extends Extension {
   def crudCollection(persistentId: String): Future[BSONCollection] = {
     val promise = Promise[BSONCollection]()
     collections ! GetCrudCollectionFor(persistentId, promise)
+    promise.future
+  }
+
+  def crudCollectionOfEntity(entityType: String): Future[BSONCollection] = {
+    val promise = Promise[BSONCollection]()
+    collections ! GetCrudCollectionOfEntity(entityType, promise)
     promise.future
   }
 

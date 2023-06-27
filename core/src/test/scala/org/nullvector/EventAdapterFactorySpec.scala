@@ -174,7 +174,7 @@ class EventAdapterFactorySpec extends AnyFlatSpec with Matchers {
       discriminator = "_type",
       typeNaming = TypeNaming.SimpleName
     )
-    implicit val mapping                 = EventAdapterFactory.mappingOf[SolarPlanet] { doc: BSONDocument =>
+    implicit val mapping                 = EventAdapterFactory.mappingOf[SolarPlanet] { (doc: BSONDocument) =>
       doc.getAsOpt[String]("className") match {
         case Some(name) => doc ++ BSONDocument("_type" -> name)
         case None       => doc

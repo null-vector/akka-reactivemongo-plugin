@@ -6,19 +6,23 @@ import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.actor.typed.ActorRef
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.persistence.query.NoOffset
 import akka.persistence.state.DurableStateStoreRegistry
 import akka.persistence.state.scaladsl.GetObjectResult
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.state.scaladsl.{DurableStateBehavior, Effect}
 import akka.util.Timeout
-import org.nullvector.crud.ReactiveMongoCrud.Schema
+import org.nullvector.crud.ReactiveMongoCrud.{CrudOffset, Schema}
 import org.nullvector.typed.ReactiveMongoEventSerializer
 import org.nullvector.{EventAdapterFactory, ReactiveMongoDriver}
 import org.scalatest.flatspec.AsyncFlatSpec
-import org.scalatest.matchers.should.Matchers._
+import org.scalatest.matchers.should.Matchers.*
+import reactivemongo.api.bson.BSONDocument
 import reactivemongo.api.indexes.IndexType
 import reactivemongo.core.errors.DatabaseException
 
+import java.time.{ZoneOffset, ZonedDateTime}
+import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
@@ -26,8 +30,9 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
 
   implicit private val system: ActorSystem = ActorSystem("Crud")
   val crud                                 = DurableStateStoreRegistry(system)
-    .durableStateStoreFor[ReactiveMongoCrud](ReactiveMongoCrud.pluginId)
+    .durableStateStoreFor[ReactiveMongoCrud[ChessBoard]](ReactiveMongoCrud.pluginId)
   private val driver: ReactiveMongoDriver  = ReactiveMongoDriver(system)
+  val testKit                              = ActorTestKit(system.toTyped)
 
   ReactiveMongoEventSerializer(system.toTyped)
     .addAdapter(EventAdapterFactory.adapt[ChessBoard]("ChessBoard"))
@@ -92,7 +97,6 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
   it should "support DurableStoreBehaviour" in {
     implicit val timeout   = Timeout(1.seconds)
     implicit val scheduler = system.toTyped.scheduler
-    val testKit            = ActorTestKit(system.toTyped)
     val chessBoardId       = Random.nextLong().abs.toString
     val chessBoardRef      = testKit.spawn(ChessBoardBehavior.behavior(chessBoardId))
     for {
@@ -123,6 +127,44 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
         Schema.persistenceId -> IndexType.Ascending,
         Schema.revision      -> IndexType.Ascending
       )
+    }
+  }
+
+  it should "Query current updates on ChessBoard" in {
+    val offset        = CrudOffset(ZonedDateTime.now(ZoneOffset.UTC).minusMinutes(1).toInstant)
+    val persistenceId = randomPersistenceId
+    for {
+      _            <- crud.upsertObject(persistenceId, 1, ChessBoard(Map("a1" -> "R")), "")
+      updatedCount <- crud.query("ChessBoard", 2.seconds).currentChanges("", offset).runFold(0) {
+                        case (counter, updated) if updated.persistenceId == persistenceId => counter + 1
+                        case (counter, _)                                                 => counter
+                      }
+      docCount     <- driver.crudCollectionOfEntity("ChessBoard").flatMap(_.count(Some(BSONDocument(Schema.persistenceId -> persistenceId))))
+    } yield {
+      updatedCount shouldBe docCount
+    }
+  }
+
+  it should "Query updates on ChessBoard periodically" in {
+    val atomicInteger        = new AtomicInteger()
+    crud
+      .query("ChessBoard", 100.millis)
+      .changes("", NoOffset)
+      .map(_ => atomicInteger.incrementAndGet())
+      .run()
+    Thread.sleep(1000)
+    val currentUpdatesBefore = atomicInteger.get()
+
+    implicit val timeout   = Timeout(1.seconds)
+    implicit val scheduler = system.toTyped.scheduler
+    val chessBoardId       = Random.nextLong().abs.toString
+    val chessBoardRef      = testKit.spawn(ChessBoardBehavior.behavior(chessBoardId))
+    for {
+      _                  <- chessBoardRef.ask[Done](ref => ChessBoardBehavior.UpdatePosition("b3" -> "QW", ref))
+      _                   = Thread.sleep(500)
+      currentUpdatesAfter = atomicInteger.get()
+    } yield {
+      currentUpdatesAfter shouldBe (currentUpdatesBefore + 1)
     }
   }
 

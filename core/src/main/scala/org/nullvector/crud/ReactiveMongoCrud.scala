@@ -1,15 +1,22 @@
 package org.nullvector.crud
 
-import akka.Done
 import akka.actor.typed.{ActorSystem, DispatcherSelector}
 import akka.persistence.PersistentRepr
+import akka.persistence.query.*
+import akka.persistence.query.scaladsl.DurableStateStoreQuery
 import akka.persistence.state.scaladsl.{DurableStateStore, DurableStateUpdateStore, GetObjectResult}
-import org.nullvector.ReactiveMongoDriver
-import org.nullvector.crud.ReactiveMongoCrud.Schema
+import akka.stream.ActorAttributes
+import akka.stream.scaladsl.Source
+import akka.{Done, NotUsed}
+import org.nullvector.crud.ReactiveMongoCrud.{CrudOffset, Schema}
 import org.nullvector.typed.ReactiveMongoEventSerializer
+import org.nullvector.util.FutureExt.FutureExt
+import org.nullvector.{ReactiveMongoDriver, ReactiveMongoPlugin}
+import reactivemongo.akkastream.*
 import reactivemongo.api.bson.{BSONDateTime, BSONDocument}
 
 import java.time.{Clock, Instant}
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
 object ReactiveMongoCrud {
@@ -22,32 +29,50 @@ object ReactiveMongoCrud {
     val created       = "created"
     val updated       = "updated"
     val tags          = "tags"
+    val deleted       = "deleted"
+  }
+
+  object CrudOffset {
+    def latest(left: Offset, right: Offset): CrudOffset = from(left) -> from(right) match {
+      case (left, right) if left >= right => left
+      case (_, right)                     => right
+    }
+
+    def from(offset: Offset): CrudOffset = offset match {
+      case NoOffset           => CrudOffset(Instant.EPOCH)
+      case offset: CrudOffset => offset
+      case other              => throw new IllegalArgumentException(s"$other is not assignable from CrudOffset")
+    }
+    def from(bsonDateTime: BSONDateTime) = new CrudOffset(Instant.ofEpochMilli(bsonDateTime.value))
+  }
+
+  case class CrudOffset(timestamp: Instant) extends Offset with Ordered[CrudOffset] {
+    def asBson: BSONDateTime = BSONDateTime(timestamp.toEpochMilli)
+
+    override def compare(that: CrudOffset): Int = timestamp.compareTo(that.timestamp)
   }
 }
 
-class ReactiveMongoCrud(system: ActorSystem[?]) extends DurableStateStore[Any] with DurableStateUpdateStore[Any] {
+class ReactiveMongoCrud[State](system: ActorSystem[?]) extends DurableStateStore[State] with DurableStateUpdateStore[State] {
   private implicit lazy val dispatcher: ExecutionContext =
-    system.dispatchers.lookup(DispatcherSelector.fromConfig("akka-persistence-reactivemongo-dispatcher"))
+    system.dispatchers.lookup(DispatcherSelector.fromConfig(ReactiveMongoPlugin.pluginDispatcherName))
   private val driver: ReactiveMongoDriver                = ReactiveMongoDriver(system)
   private val serializer: ReactiveMongoEventSerializer   = ReactiveMongoEventSerializer(system)
   private val utcClock: Clock                            = Clock.systemUTC()
 
-  override def getObject(persistenceId: String): Future[GetObjectResult[Any]] = {
+  override def getObject(persistenceId: String): Future[GetObjectResult[State]] = {
     for {
       coll              <- driver.crudCollection(persistenceId)
       (found, revision) <- coll.find(BSONDocument(Schema.persistenceId -> persistenceId)).one[BSONDocument].flatMap {
                              case Some(doc) =>
-                               val manifest = doc.getAsOpt[String](Schema.manifest).get
-                               val payload  = doc.getAsOpt[BSONDocument](Schema.payload).get
                                val revision = doc.getAsOpt[Long](Schema.revision).get
-                               serializer
-                                 .deserialize(PersistentRepr(payload = payload, manifest = manifest))
-                                 .map(rep => Some(rep.payload) -> revision)
+                               document2PersistentRepr(doc)
+                                 .map(rep => Some(rep.payload.asInstanceOf[State]) -> revision)
                              case None      => Future.successful(None, 0L)
                            }
     } yield GetObjectResult(found, revision)
   }
-  override def upsertObject(persistenceId: String, revision: Long, value: Any, tag: String): Future[Done] = {
+  override def upsertObject(persistenceId: String, revision: Long, value: State, tag: String): Future[Done] = {
     val nowBsonDateTime = BSONDateTime(Instant.now(utcClock).toEpochMilli)
     for {
       coll <- driver.crudCollection(persistenceId)
@@ -80,5 +105,80 @@ class ReactiveMongoCrud(system: ActorSystem[?]) extends DurableStateStore[Any] w
       coll <- driver.crudCollection(persistenceId)
       _    <- coll.findAndRemove(BSONDocument(Schema.persistenceId -> persistenceId, Schema.revision -> revision))
     } yield Done
+  }
+
+  def query(entityTypeHint: String, pullInterval: FiniteDuration): DurableStateStoreQuery[State] = new DurableStateStoreQuery[State] {
+    private val amountOfCores: Int           = Runtime.getRuntime.availableProcessors()
+    private implicit val mat: ActorSystem[?] = system
+
+    override def currentChanges(tag: String, offset: Offset): Source[DurableStateChange[State], NotUsed] = {
+      val maybeTag               = Some(tag).filterNot(_ == "")
+      val eventualDocumentSource = driver
+        .crudCollectionOfEntity(entityTypeHint)
+        .map(collection =>
+          collection
+            .find(
+              BSONDocument(
+                Schema.updated -> BSONDocument("$gt" -> CrudOffset.from(offset).asBson)
+              ) ++ maybeTag.fold(BSONDocument.empty)(_ => BSONDocument(Schema.tags -> tag))
+            )
+            .hint(
+              collection.hint(maybeTag.fold(BSONDocument(Schema.updated -> 1))(_ => BSONDocument(Schema.updated -> 1, Schema.tags -> 1)))
+            )
+            .cursor[BSONDocument]()
+            .documentSource()
+        )
+
+      Source
+        .futureSource(eventualDocumentSource)
+        .addAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+        .mapAsync(amountOfCores)(doc => document2PersistentRepr(doc).map(doc -> _))
+        .map { case (doc, repr) =>
+          val persistenceId = doc.getAsOpt[String](Schema.persistenceId).get
+          val revision      = doc.getAsOpt[Long](Schema.revision).get
+          val updatedTime   = doc.getAsOpt[BSONDateTime](Schema.updated).get
+          doc.getAsOpt[Boolean](Schema.deleted) match {
+            case Some(false) | None =>
+              new UpdatedDurableState(
+                persistenceId,
+                revision,
+                repr.payload.asInstanceOf[State],
+                CrudOffset.from(updatedTime),
+                updatedTime.value
+              )
+            case _                  =>
+              new DeletedDurableState[State](persistenceId, revision, CrudOffset.from(updatedTime), updatedTime.value)
+          }
+
+        }
+        .mapMaterializedValue(_ => NotUsed)
+    }
+
+    override def changes(tag: String, offset: Offset): Source[DurableStateChange[State], NotUsed] = {
+      Source
+        .unfoldAsync(offset)(offset =>
+          Future
+            .successful(())
+            .delayed(pullInterval)(system.scheduler, implicitly[ExecutionContext])
+            .flatMap(_ =>
+              currentChanges(tag, offset)
+                .runFold((offset, List[DurableStateChange[State]]())) { case ((lastOffset, acc), stateChange) =>
+                  CrudOffset.latest(lastOffset, stateChange.offset) -> (stateChange :: acc)
+                }
+                .map(Some(_))
+            )
+        )
+        .mapConcat(identity)
+        .addAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+    }
+
+    override def getObject(persistenceId: String): Future[GetObjectResult[State]] = ReactiveMongoCrud.this.getObject(persistenceId)
+  }
+
+  private def document2PersistentRepr(doc: BSONDocument): Future[PersistentRepr] = {
+    val manifest = doc.getAsOpt[String](Schema.manifest).get
+    val payload  = doc.getAsOpt[BSONDocument](Schema.payload).get
+    serializer
+      .deserialize(PersistentRepr(payload = payload, manifest = manifest))
   }
 }

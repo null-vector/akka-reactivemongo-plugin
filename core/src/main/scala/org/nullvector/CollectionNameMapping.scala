@@ -5,11 +5,12 @@ import com.typesafe.config.Config
 import scala.util.matching.Regex
 
 trait CollectionNameMapping {
+  val separator: String
   def collectionNameOf(persistentId: String): Option[String]
 }
 
 class DefaultCollectionNameMapping(config: Config) extends CollectionNameMapping {
-  private val separator: String =
+  val separator: String =
     config.getString("akka-persistence-reactivemongo.persistence-id-separator")
   private val pattern: Regex    = buildPattern(separator.headOption)
 
@@ -22,7 +23,7 @@ class DefaultCollectionNameMapping(config: Config) extends CollectionNameMapping
 
   private def buildPattern(maybeSeparator: Option[Char]) =
     maybeSeparator match {
-      case Some(char) => s"(\\w+)[$char](.+)".r
+      case Some(char) => s"(\\w+)[$char](.*)".r
       case None       => s"()(.+)".r
     }
 

@@ -10,7 +10,7 @@ object TimeoutPromise {
   def apply[T](timeout: FiniteDuration, onTimeoutMessage: () => String)(implicit
       ec: ExecutionContext
   ): Promise[T] = {
-    val thePromise = Promise[T]
+    val thePromise = Promise[T]()
     val timerTask  = new TimerTask() {
       def run() = {
         if (!thePromise.isCompleted) {

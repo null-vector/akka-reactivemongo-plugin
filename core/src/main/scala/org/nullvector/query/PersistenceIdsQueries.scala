@@ -5,8 +5,8 @@ import akka.persistence.query.{NoOffset, Offset}
 import akka.stream.scaladsl.Source
 import org.nullvector.Fields
 import org.nullvector.query.PersistenceIdsQueries.PersistenceId
-import reactivemongo.api.bson._
-import reactivemongo.akkastream._
+import reactivemongo.api.bson.*
+import reactivemongo.akkastream.*
 
 import scala.concurrent.Future
 
