@@ -3,7 +3,7 @@ package org.nullvector
 import akka.actor.{ActorSystem, ExtendedActorSystem}
 import org.nullvector.ReactiveMongoDriver.DatabaseProvider
 import org.slf4j.{Logger, LoggerFactory}
-import reactivemongo.api.{AsyncDriver, DB, MongoConnection}
+import reactivemongo.api.{AsyncDriver, DB, FailoverStrategy, MongoConnection}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -26,14 +26,14 @@ class DefaultDatabaseProvider(system: ActorSystem) extends DatabaseProvider {
           case Some(databaseName) =>
             AsyncDriver(system.settings.config)
               .connect(parsedUri)
-              .flatMap(_.database(databaseName))
+              .flatMap(_.database(databaseName, FailoverStrategy(initialDelay = 700.millis, retries = 500)))
           case None               =>
             val exception =
               new IllegalStateException(s"Missing Database Name in $mongoUri")
             throw exception
         }
       },
-      15.seconds
+      30.seconds
     )
   }
 

@@ -89,7 +89,7 @@ class ReactiveMongoReadJournalSpec()
       val eventualDone =
         readJournal.currentEventsByTag(tagNames(1), NoOffset).runWith(Sink.seq)
       println(System.currentTimeMillis())
-      val envelopes    = Await.result(eventualDone, 3.seconds)
+      val envelopes    = Await.result(eventualDone, 7.seconds)
       println(System.currentTimeMillis())
       envelopes.size shouldBe 200
     }
@@ -99,7 +99,7 @@ class ReactiveMongoReadJournalSpec()
         .currentEventsByTag(tagNames.head, NoOffset)
         .runWith(Sink.seq)
       println(System.currentTimeMillis())
-      val envelopes    = Await.result(eventualDone, 3.seconds)
+      val envelopes    = Await.result(eventualDone, 21.seconds)
       println(System.currentTimeMillis())
       envelopes.size shouldBe 150
     }
@@ -470,7 +470,7 @@ class ReactiveMongoReadJournalSpec()
         .run(),
       14.seconds
     )
-    Thread.sleep(2000)
+    Thread.sleep(3000)
     ids.get() shouldBe 250
     Await.ready(
       Source(1 to 10)

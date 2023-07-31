@@ -2,10 +2,11 @@ lazy val scala213               = "2.13.11"
 lazy val scala300               = "3.3.0"
 lazy val supportedScalaVersions = List(scala213)
 lazy val akkaVersion            = "2.6.20"
-lazy val rxmongoVersion         = "1.0.10"
+lazy val rxmongoVersion         = "1.1.0-RC11"
+lazy val rxmongoStreamVersion   = "1.1.0-RC11"
 
 ThisBuild / scalaVersion       := scala213
-ThisBuild / version            := s"1.6.3"
+ThisBuild / version            := s"1.6.5"
 ThisBuild / crossScalaVersions := supportedScalaVersions
 ThisBuild / scalacOptions      := Seq(
   "-Xsource:3",
@@ -38,7 +39,8 @@ lazy val commonSettings = Seq(
   libraryDependencies += "ch.qos.logback"     % "logback-classic"          % "1.4.7",
   libraryDependencies += "joda-time"          % "joda-time"                % "2.12.5",
   libraryDependencies += "org.reactivemongo" %% "reactivemongo"            % rxmongoVersion,
-  libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoVersion,
+  libraryDependencies += "org.reactivemongo" %% "reactivemongo-akkastream" % rxmongoStreamVersion,
+  libraryDependencies += "io.netty"           % "netty-all"                % "5.0.0.Alpha2",
   libraryDependencies += "com.typesafe.play" %% "play-json"                % "2.9.4",
   libraryDependencies += "org.scala-lang"     % "scala-reflect"            % scalaVersion.value,
 
@@ -54,7 +56,8 @@ lazy val commonSettings = Seq(
   ).mkString(";"),
   Test / fork                                := true,
   Test / javaOptions += "-Xmx4G",
-  Test / javaOptions += "-Dfile.encoding=UTF-8"
+  Test / javaOptions += "-Dfile.encoding=UTF-8",
+  Test / javaOptions += "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
 )
 
 lazy val core = (project in file("core"))
