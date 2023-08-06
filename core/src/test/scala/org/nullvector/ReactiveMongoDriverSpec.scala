@@ -60,21 +60,20 @@ class ReactiveMongoDriverSpec() extends AsyncFlatSpec with Matchers with BeforeA
       .map(_.name shouldBe "crud_AnEntity")
   }
 
-//  it should " ensure crud indices " in {
-//    for {
-//      collection   <- rxDriver.crudCollectionOfEntity("AnEntity22")
-//      indices      <- collection.indexesManager.list()
-//      namesWithKeys = indices.flatMap(index => index.name.map((_, index.key, index.unique)))
-//    } yield namesWithKeys should contain.allElementsOf(
-//      Seq(
-//        ("pid_revision", Seq("pid" -> Ascending, "revision" -> Ascending), true),
-//        ("updated_tags", Seq("updated" -> Ascending, "tags" -> Ascending), false),
-//        ("updated", Seq("updated" -> Ascending), false),
-//        ("persistence_id", Seq("pid" -> Ascending), true),
-//        ("_id_", Seq("_id" -> Ascending), true)
-//      )
-//    )
-//  }
+  it should " ensure crud indices " in {
+    for {
+      collection   <- rxDriver.crudCollectionOfEntity("AnEntity22")
+      indices      <- collection.indexesManager.list()
+      namesWithKeys = indices.flatMap(index => index.name.filterNot(_ == "_id_").map((_, index.key.toList, index.unique)))
+    } yield namesWithKeys should contain.theSameElementsAs(
+      List(
+        ("pid_revision", List("pid" -> Ascending, "revision" -> Ascending), true),
+        ("updated_tags", List("updated" -> Ascending, "tags" -> Ascending), false),
+        ("updated", List("updated" -> Ascending), false),
+        ("persistence_id", List("pid" -> Ascending), true)
+      )
+    )
+  }
 
   it should " check health fail " in {
     rxDriver.withDatabaseProvider(new DatabaseProvider {
