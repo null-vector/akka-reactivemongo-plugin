@@ -1,24 +1,25 @@
 package org.nullvector.typed
 
 import akka.Done
+import akka.actor.typed.*
+import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
-import akka.actor.typed._
 import akka.persistence.PersistentRepr
 import akka.persistence.journal.Tagged
 import akka.util.Timeout
+import org.nullvector.*
 import org.nullvector.logging.LoggerPerClassAware
 import org.nullvector.typed.ReactiveMongoEventSerializer.SerializerBehavior
-import org.nullvector.{AdapterKey, BsonEventAdapter, EventAdapter, Fields, ReactiveMongoPlugin, TaggedEventAdapter}
 import reactivemongo.api.bson.BSONDocument
 
-import scala.collection.concurrent._
-import scala.concurrent.{Await, Future}
+import scala.collection.concurrent.*
 import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContextExecutor, Future, Promise}
 import scala.util.{Failure, Success, Try}
 
 object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerializer] with LoggerPerClassAware {
   override def createExtension(
-      system: ActorSystem[_]
+      system: ActorSystem[?]
   ): ReactiveMongoEventSerializer =
     new ReactiveMongoEventSerializer(
       system.systemActorOf(
@@ -34,7 +35,7 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
     trait SerializationCommand extends Command
 
     case class AddAdapters(
-        eventAdapters: Seq[EventAdapter[_]],
+        eventAdapters: Seq[EventAdapter[?]],
         replyTo: ActorRef[Done]
     ) extends Command
 
@@ -43,41 +44,61 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
         replyTo: ActorRef[Try[Seq[PersistentRepr]]]
     ) extends SerializationCommand
 
+    case class DeserializePromise(
+        persistentReprs: Seq[PersistentRepr],
+        promise: Promise[Seq[PersistentRepr]]
+    ) extends SerializationCommand
+
     case class Serialize(
         persistentReprs: Seq[PersistentRepr],
         replyTo: ActorRef[Try[Seq[(PersistentRepr, Set[String])]]]
     ) extends SerializationCommand
 
+    case class SerializePromise(
+        persistentReprs: Seq[PersistentRepr],
+        promise: Promise[Seq[(PersistentRepr, Set[String])]]
+    ) extends SerializationCommand
+
     def apply(): Behavior[Command] = Behaviors.setup[Command] { context =>
       val registry = new Registry()
 
+      def serialize(persistentReprs: Seq[PersistentRepr]) = {
+        persistentReprs.foldLeft[Try[Seq[(PersistentRepr, Set[String])]]](
+          Success(Nil)
+        )((acc, rep) =>
+          acc
+            .flatMap(_ => registry.adapterByPayload(rep))
+            .flatMap(adapter =>
+              serializeWith(adapter, rep)
+                .flatMap(deRep => acc.map(_ :+ deRep))
+            )
+        )
+      }
+
+      def deserialize(persistentReprs: Seq[PersistentRepr]) = {
+        persistentReprs.foldLeft[Try[Seq[PersistentRepr]]](Success(Nil))((acc, rep) =>
+          acc
+            .flatMap(_ => registry.adapterByManifest(rep))
+            .flatMap(adapter =>
+              deserializeWith(adapter, rep)
+                .flatMap(deRep => acc.map(_ :+ deRep))
+            )
+        )
+      }
+
       val workerBehavior = Behaviors
         .supervise(Behaviors.receiveMessage[SerializationCommand] {
-          case Deserialize(persistentReprs, replyTo) =>
-            val deserializedReps =
-              persistentReprs.foldLeft[Try[Seq[PersistentRepr]]](Success(Nil))((acc, rep) =>
-                acc
-                  .flatMap(_ => registry.adapterByManifest(rep))
-                  .flatMap(adapter =>
-                    deserializeWith(adapter, rep)
-                      .flatMap(deRep => acc.map(_ :+ deRep))
-                  )
-              )
-            replyTo ! deserializedReps
+          case Deserialize(persistentReprs, replyTo)        =>
+            replyTo ! deserialize(persistentReprs)
             Behaviors.same
-          case Serialize(persistentReprs, replyTo)   =>
-            val serializedReps =
-              persistentReprs.foldLeft[Try[Seq[(PersistentRepr, Set[String])]]](
-                Success(Nil)
-              )((acc, rep) =>
-                acc
-                  .flatMap(_ => registry.adapterByPayload(rep))
-                  .flatMap(adapter =>
-                    serializeWith(adapter, rep)
-                      .flatMap(deRep => acc.map(_ :+ deRep))
-                  )
-              )
-            replyTo ! serializedReps
+          case DeserializePromise(persistentReprs, promise) =>
+            promise.complete(deserialize(persistentReprs))
+            Behaviors.same
+          case Serialize(persistentReprs, replyTo)          =>
+            replyTo ! serialize(persistentReprs)
+            Behaviors.same
+          case SerializePromise(persistentReprs, promise)   =>
+            promise.complete(serialize(persistentReprs))
             Behaviors.same
         })
         .onFailure(SupervisorStrategy.restart)
@@ -91,7 +112,8 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
         )
         .withRoundRobinRouting()
 
-      val workerPool = context.spawn(workerPoolBehavior, "WorkerPool")
+      val workerPool =
+        context.spawn(workerPoolBehavior, "WorkerPool", DispatcherSelector.fromConfig(ReactiveMongoPlugin.pluginDispatcherName))
 
       val mainBehavior = Behaviors.receiveMessage[Command] {
         case AddAdapters(adapters, replyTo) =>
@@ -203,11 +225,11 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
 
 class ReactiveMongoEventSerializer(
     val serializer: ActorRef[SerializerBehavior.Command]
-)(implicit system: ActorSystem[_])
+)(implicit system: ActorSystem[?])
     extends Extension {
 
-  import akka.actor.typed.scaladsl.AskPattern._
-  import system.executionContext
+  private implicit val ec: ExecutionContextExecutor =
+    system.dispatchers.lookup(DispatcherSelector.fromConfig(ReactiveMongoPlugin.pluginDispatcherName))
 
   private implicit val defaultTimeout: Timeout = Timeout(15.seconds)
 
@@ -216,21 +238,21 @@ class ReactiveMongoEventSerializer(
       .ask(ref => SerializerBehavior.AddAdapters(adapters, ref))
   }
 
-  def addAdapterAsync(adapter: EventAdapter[_]): Future[Done] =
+  def addAdapterAsync(adapter: EventAdapter[?]): Future[Done] =
     addAdaptersAsync(Seq(adapter))
 
-  def addAdapters(adapters: Seq[EventAdapter[_]]): Unit =
+  def addAdapters(adapters: Seq[EventAdapter[?]]): Unit =
     Await.result(addAdaptersAsync(adapters), defaultTimeout.duration)
 
-  def addAdapter(adapter: EventAdapter[_]): Unit =
+  def addAdapter(adapter: EventAdapter[?]): Unit =
     addAdapters(Seq(adapter))
 
   def deserialize(
       persistentReprs: Seq[PersistentRepr]
   ): Future[Seq[PersistentRepr]] = {
-    serializer
-      .ask(ref => SerializerBehavior.Deserialize(persistentReprs, ref))
-      .transform(_.flatMap(identity))
+    val promise = Promise[Seq[PersistentRepr]]()
+    serializer.tell(SerializerBehavior.DeserializePromise(persistentReprs, promise))
+    promise.future
   }
 
   def deserialize(persistentRepr: PersistentRepr): Future[PersistentRepr] =
@@ -239,9 +261,9 @@ class ReactiveMongoEventSerializer(
   def serialize(
       persistentReprs: Seq[PersistentRepr]
   ): Future[Seq[(PersistentRepr, Set[String])]] = {
-    serializer
-      .ask(ref => SerializerBehavior.Serialize(persistentReprs, ref))
-      .transform(_.flatMap(identity))
+    val promise = Promise[Seq[(PersistentRepr, Set[String])]]()
+    serializer.tell(SerializerBehavior.SerializePromise(persistentReprs, promise))
+    promise.future
   }
 
   def serialize(
