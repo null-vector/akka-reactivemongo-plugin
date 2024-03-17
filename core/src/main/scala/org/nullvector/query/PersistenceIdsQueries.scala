@@ -2,13 +2,12 @@ package org.nullvector.query
 
 import akka.NotUsed
 import akka.persistence.query.{NoOffset, Offset}
+import akka.stream.ActorAttributes
 import akka.stream.scaladsl.Source
-import org.nullvector.Fields
 import org.nullvector.query.PersistenceIdsQueries.PersistenceId
-import reactivemongo.api.bson.*
+import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.akkastream.*
-
-import scala.concurrent.Future
+import reactivemongo.api.bson.*
 
 object PersistenceIdsQueries {
 
@@ -55,21 +54,24 @@ trait PersistenceIdsQueries
   private def buildFindAllIds(
       coll: collection.BSONCollection,
       offset: Offset
-  ): Source[PersistenceId, Future[State]] = {
-    coll
+  ): Source[PersistenceId, NotUsed] = {
+    val producedCursor = coll
       .find(
         BSONDocument(Fields.from_sn -> 1L) ++ filterByOffset(offset),
         Option.empty[BSONDocument]
       )
       .sort(BSONDocument("_id" -> 1))
       .cursor[BSONDocument]()
-      .documentSource()
+
+    Source.futureSource(producedCursor.collect[List]().map(Source.apply))
       .map(doc =>
         PersistenceId(
           doc.getAsOpt[String](Fields.persistenceId).get,
           ObjectIdOffset(doc.getAsOpt[BSONObjectID]("_id").get)
         )
       )
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+      .mapMaterializedValue(_ => NotUsed)
   }
 
 }

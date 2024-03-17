@@ -16,6 +16,7 @@ import reactivemongo.akkastream.*
 import reactivemongo.api.bson.{BSONDateTime, BSONDocument}
 
 import java.time.{Clock, Instant}
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -107,27 +108,27 @@ class ReactiveMongoCrud[State](system: ActorSystem[?]) extends DurableStateStore
     } yield Done
   }
 
-  def query(entityTypeHint: String, pullInterval: FiniteDuration): DurableStateStoreQuery[State] = new DurableStateStoreQuery[State] {
+  def query(entityTypeHint: String): CrudStateStoreQuery[State] = new CrudStateStoreQuery[State] {
     private val amountOfCores: Int           = Runtime.getRuntime.availableProcessors()
     private implicit val mat: ActorSystem[?] = system
 
-    override def currentChanges(tag: String, offset: Offset): Source[DurableStateChange[State], NotUsed] = {
-      val maybeTag               = Some(tag).filterNot(_ == "")
+    override def currentChanges(tag: Option[String], offset: Offset, consumeCursorEarly: Boolean = true): Source[DurableStateChange[State], NotUsed] = {
       val eventualDocumentSource = driver
         .crudCollectionOfEntity(entityTypeHint)
-        .map(collection =>
-          collection
+        .flatMap { collection =>
+          val cursor = collection
             .find(
               BSONDocument(
                 Schema.updated -> BSONDocument("$gt" -> CrudOffset.from(offset).asBson)
-              ) ++ maybeTag.fold(BSONDocument.empty)(_ => BSONDocument(Schema.tags -> tag))
+              ) ++ tag.fold(BSONDocument.empty)(_ => BSONDocument(Schema.tags -> tag))
             )
             .hint(
-              collection.hint(maybeTag.fold(BSONDocument(Schema.updated -> 1))(_ => BSONDocument(Schema.updated -> 1, Schema.tags -> 1)))
+              collection.hint(tag.fold(BSONDocument(Schema.updated -> 1))(_ => BSONDocument(Schema.updated -> 1, Schema.tags -> 1)))
             )
             .cursor[BSONDocument]()
-            .documentSource()
-        )
+          if(consumeCursorEarly) cursor.collect[List]().map(Source.apply)
+          else Future.successful(cursor.documentSource())
+        }
 
       Source
         .futureSource(eventualDocumentSource)
@@ -149,30 +150,27 @@ class ReactiveMongoCrud[State](system: ActorSystem[?]) extends DurableStateStore
             case _                  =>
               new DeletedDurableState[State](persistenceId, revision, CrudOffset.from(updatedTime), updatedTime.value)
           }
-
         }
         .mapMaterializedValue(_ => NotUsed)
     }
 
-    override def changes(tag: String, offset: Offset): Source[DurableStateChange[State], NotUsed] = {
+    override def changes(tag: Option[String], offset: Offset, pullInterval: FiniteDuration, consumeCursorEarly: Boolean = true): Source[DurableStateChange[State], NotUsed] = {
       Source
-        .unfoldAsync(offset)(offset =>
+        .unfoldAsync(offset) { offset =>
           Future
             .successful(())
             .delayed(pullInterval)(system.scheduler, implicitly[ExecutionContext])
             .flatMap(_ =>
-              currentChanges(tag, offset)
-                .runFold((offset, List[DurableStateChange[State]]())) { case ((lastOffset, acc), stateChange) =>
-                  CrudOffset.latest(lastOffset, stateChange.offset) -> (stateChange :: acc)
+              currentChanges(tag, offset, consumeCursorEarly)
+                .runFold((offset, ArrayBuffer[DurableStateChange[State]]())) { case ((lastOffset, acc), stateChange) =>
+                  CrudOffset.latest(lastOffset, stateChange.offset) -> acc.addOne(stateChange)
                 }
                 .map(Some(_))
             )
-        )
+        }
         .mapConcat(identity)
         .addAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
     }
-
-    override def getObject(persistenceId: String): Future[GetObjectResult[State]] = ReactiveMongoCrud.this.getObject(persistenceId)
   }
 
   private def document2PersistentRepr(doc: BSONDocument): Future[PersistentRepr] = {

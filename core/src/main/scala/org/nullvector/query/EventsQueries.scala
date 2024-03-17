@@ -9,7 +9,7 @@ import org.nullvector.ReactiveMongoDriver.QueryType
 import org.nullvector.{Fields, ReactiveMongoPlugin}
 import reactivemongo.akkastream.cursorProducer
 import reactivemongo.api.CursorProducer
-import reactivemongo.api.bson._
+import reactivemongo.api.bson.*
 import reactivemongo.api.bson.collection.BSONCollection
 
 import scala.concurrent.Future
@@ -148,7 +148,7 @@ trait EventsQueries
       .via(docs2EnvelopeFlow)
   }
 
-  private def docs2EnvelopeFlow = Flow[BSONDocument]
+  private def docs2EnvelopeFlow: Flow[BSONDocument, EventEnvelope, NotUsed] = Flow[BSONDocument]
     .groupedWithin(21, 1.millis)
     .mapAsync(amountOfCores)(docsToEnvelop)
     .mapConcat(identity)
@@ -159,9 +159,9 @@ trait EventsQueries
       tags: Seq[String],
       eventFilter: BSONDocument,
       filterHint: Option[BSONDocument]
-  ) = {
+  ): Source[BSONDocument, NotUsed] = {
     def queryTagsIn(field: String) = BSONDocument(field -> BSONDocument("$in" -> tags))
-    import collection.AggregationFramework._
+    import collection.AggregationFramework.*
 
     val filterByOffsetExp              = filterByOffset(offset)
     val stages: List[PipelineOperator] = List(
@@ -187,9 +187,10 @@ trait EventsQueries
       producer.produce(aggregateCursor)
     }
 
-    aggregate
-      .documentSource()
+    Source
+      .futureSource(aggregate.collect[List]().map(Source.apply))
       .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+      .mapMaterializedValue(_ => NotUsed)
   }
 
   private def buildFindEventsByIdQuery(
@@ -198,7 +199,7 @@ trait EventsQueries
       fromSequenceNr: Long,
       toSequenceNr: Long
   ) = {
-    coll
+    val producedCursor = coll
       .aggregateWith[BSONDocument]()(framework =>
         List(
           framework.Match(
@@ -214,10 +215,10 @@ trait EventsQueries
           )
         )
       )
-      .documentSource()
-      .withAttributes(
-        ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName)
-      )
+    Source
+      .futureSource(producedCursor.collect[List]().map(Source.apply))
+      .withAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+      .mapMaterializedValue(_ => NotUsed)
   }
 
   private def docsToEnvelop(docs: Seq[BSONDocument]): Future[Seq[EventEnvelope]] = {

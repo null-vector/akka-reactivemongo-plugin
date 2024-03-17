@@ -1,12 +1,12 @@
 lazy val scala213               = "2.13.11"
 lazy val scala300               = "3.3.0"
 lazy val supportedScalaVersions = List(scala213)
-lazy val akkaVersion            = "2.8.3"
-lazy val rxmongoVersion         = "1.1.0-RC11"
-lazy val rxmongoStreamVersion   = "1.1.0-RC11"
+lazy val akkaVersion            = "2.9.1"
+lazy val rxmongoVersion         = "1.1.0-RC12"
+lazy val rxmongoStreamVersion   = "1.1.0-RC12"
 
 ThisBuild / scalaVersion       := scala213
-ThisBuild / version            := s"1.6.9"
+ThisBuild / version            := s"1.6.10"
 ThisBuild / crossScalaVersions := supportedScalaVersions
 ThisBuild / scalacOptions      := Seq(
   "-Xsource:3",
@@ -29,7 +29,7 @@ publishLocal    := {}
 lazy val commonSettings = Seq(
   name                                       := "akka-reactivemongo-plugin",
   organization                               := "null-vector",
-  resolvers += "Akka Maven Repository" at "https://akka.io/repository",
+  resolvers += "Akka library repository".at("https://repo.akka.io/maven"),
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence"         % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-query"   % akkaVersion,
   libraryDependencies += "com.typesafe.akka" %% "akka-persistence-typed"   % akkaVersion,

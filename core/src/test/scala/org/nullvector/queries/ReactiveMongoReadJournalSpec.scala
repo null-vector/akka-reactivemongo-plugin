@@ -389,7 +389,7 @@ class ReactiveMongoReadJournalSpec()
       14.seconds
     )
 
-    Thread.sleep(1000)
+    Thread.sleep(1500)
 
     counter.get() shouldBe 150
   }

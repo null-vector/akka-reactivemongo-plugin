@@ -135,7 +135,7 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
     val persistenceId = randomPersistenceId
     for {
       _            <- crud.upsertObject(persistenceId, 1, ChessBoard(Map("a1" -> "R")), "")
-      updatedCount <- crud.query("ChessBoard", 2.seconds).currentChanges("", offset).runFold(0) {
+      updatedCount <- crud.query("ChessBoard").currentChanges(None, offset).runFold(0) {
                         case (counter, updated) if updated.persistenceId == persistenceId => counter + 1
                         case (counter, _)                                                 => counter
                       }
@@ -148,8 +148,8 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
   it should "Query updates on ChessBoard periodically" in {
     val atomicInteger        = new AtomicInteger()
     crud
-      .query("ChessBoard", 100.millis)
-      .changes("", NoOffset)
+      .query("ChessBoard")
+      .changes(None, NoOffset, 100.millis)
       .map(_ => atomicInteger.incrementAndGet())
       .run()
     Thread.sleep(1000)
