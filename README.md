@@ -11,12 +11,12 @@ Add in your `build.sbt` the following lines:
 resolvers += "GitHub Package Registry" at
   "https://maven.pkg.github.com/null-vector/akka-reactivemongo-plugin"
 
-credentials += Credentials(
-  "GitHub Package Registry",
-  "maven.pkg.github.com",
-  "<github-username>",
-  "<personal-access-token>" // needs read:packages
-)
+credentials ++= {
+  val token = sys.env.get("GITHUB_TOKEN") //read:package classic token
+  token.toSeq.map { token =>
+    Credentials("GitHub Package Registry", "maven.pkg.github.com", "_", token)
+  }
+}
 
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.6.10"
 ```
