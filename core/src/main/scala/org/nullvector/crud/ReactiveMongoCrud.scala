@@ -130,28 +130,32 @@ class ReactiveMongoCrud[State](system: ActorSystem[?]) extends DurableStateStore
           else Future.successful(cursor.documentSource())
         }
 
-      Source
-        .futureSource(eventualDocumentSource)
-        .addAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
-        .mapAsync(amountOfCores)(doc => document2PersistentRepr(doc).map(doc -> _))
-        .map { case (doc, repr) =>
-          val persistenceId = doc.getAsOpt[String](Schema.persistenceId).get
-          val revision      = doc.getAsOpt[Long](Schema.revision).get
-          val updatedTime   = doc.getAsOpt[BSONDateTime](Schema.updated).get
-          doc.getAsOpt[Boolean](Schema.deleted) match {
-            case Some(false) | None =>
-              new UpdatedDurableState(
-                persistenceId,
-                revision,
-                repr.payload.asInstanceOf[State],
-                CrudOffset.from(updatedTime),
-                updatedTime.value
-              )
-            case _                  =>
-              new DeletedDurableState[State](persistenceId, revision, CrudOffset.from(updatedTime), updatedTime.value)
+      val changes: Source[DurableStateChange[State], NotUsed] =
+        Source
+          .futureSource(eventualDocumentSource)
+          .addAttributes(ActorAttributes.dispatcher(ReactiveMongoPlugin.pluginDispatcherName))
+          .mapAsync(amountOfCores)(doc => document2PersistentRepr(doc).map(doc -> _))
+          .map { case (doc, repr) =>
+            val persistenceId = doc.getAsOpt[String](Schema.persistenceId).get
+            val revision      = doc.getAsOpt[Long](Schema.revision).get
+            val updatedTime   = doc.getAsOpt[BSONDateTime](Schema.updated).get
+            val change: DurableStateChange[State] =
+              doc.getAsOpt[Boolean](Schema.deleted) match {
+                case Some(false) | None =>
+                  new UpdatedDurableState(
+                    persistenceId,
+                    revision,
+                    repr.payload.asInstanceOf[State],
+                    CrudOffset.from(updatedTime),
+                    updatedTime.value
+                  )
+                case _                  =>
+                  new DeletedDurableState[State](persistenceId, revision, CrudOffset.from(updatedTime), updatedTime.value)
+              }
+            change
           }
-        }
-        .mapMaterializedValue(_ => NotUsed)
+          .mapMaterializedValue(_ => NotUsed)
+      changes
     }
 
     override def changes(tag: Option[String], offset: Offset, pullInterval: FiniteDuration, consumeCursorEarly: Boolean = true): Source[DurableStateChange[State], NotUsed] = {

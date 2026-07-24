@@ -1,7 +1,7 @@
 package org.nullvector.query
 
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
-import akka.persistence.query._
+import akka.persistence.query.{javadsl, scaladsl, _}
 import org.nullvector.UnderlyingPersistenceFactory
 
 object ReactiveMongoJournalProvider extends ExtensionId[ReactiveMongoJournalProvider] with ExtensionIdProvider {
@@ -18,8 +18,15 @@ class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJour
 
   import akka.actor.typed.scaladsl.adapter._
 
-  override val scaladslReadJournal: ReactiveMongoScalaReadJournal =
+  private val scalaReadJournal: ReactiveMongoScalaReadJournal =
     createUnderlyingFactory(Nil)
+
+  // Akka defines these as methods with an empty parameter list; Scala 3 requires the ().
+  override def scaladslReadJournal(): scaladsl.ReadJournal =
+    scalaReadJournal
+
+  def scalaReadJournalTyped: ReactiveMongoScalaReadJournal =
+    scalaReadJournal
 
   /** Creates a ReadJournal that apply queries only on given entities
     * @param entitiesNames
@@ -37,6 +44,12 @@ class ReactiveMongoJournalProvider(system: ExtendedActorSystem) extends ReadJour
     )(system)
   }
 
-  override val javadslReadJournal: ReactiveMongoJavaReadJournal =
-    new ReactiveMongoJavaReadJournal(scaladslReadJournal)
+  private val javaReadJournal: ReactiveMongoJavaReadJournal =
+    new ReactiveMongoJavaReadJournal(scalaReadJournal)
+
+  override def javadslReadJournal(): javadsl.ReadJournal =
+    javaReadJournal
+
+  def javaReadJournalTyped: ReactiveMongoJavaReadJournal =
+    javaReadJournal
 }

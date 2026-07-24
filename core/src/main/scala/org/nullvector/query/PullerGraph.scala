@@ -24,11 +24,11 @@ class PullerGraph[Element, Offset](
 
   override def shape: SourceShape[Seq[Element]] = SourceShape.of(outlet)
 
-  override def createLogic(attributes: Attributes): GraphStageLogic =
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
     new TimerGraphStageLogic(shape) {
       var currentOffset: Offset                            = initialOffset
       private val effectiveRefreshInterval: FiniteDuration =
-        attributes.get[RefreshInterval].fold(refreshInterval)(_.interval)
+        inheritedAttributes.get[RefreshInterval].fold(refreshInterval)(_.interval)
       private val updateCurrentOffset                      =
         createAsyncCallback[Offset](offset => currentOffset = offset)
       private val failAsync                                =

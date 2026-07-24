@@ -15,6 +15,7 @@ import reactivemongo.api.bson.BSONDocument
 import scala.collection.concurrent.*
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContextExecutor, Future, Promise}
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
 object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerializer] with LoggerPerClassAware {
@@ -192,7 +193,10 @@ object ReactiveMongoEventSerializer extends ExtensionId[ReactiveMongoEventSerial
         case Tagged(payload, tags) =>
           adaptersByType
             .get(AdapterKey(payload.getClass))
-            .fold[Try[EventAdapter[_]]](failureByPayload(persistentRepr))(adapter => Success(new TaggedEventAdapter(adapter, tags)))
+            .fold[Try[EventAdapter[_]]](failureByPayload(persistentRepr)) { adapter =>
+              val anyAdapter = adapter.asInstanceOf[EventAdapter[Any]]
+              Success(new TaggedEventAdapter(anyAdapter, tags)(ClassTag(payload.getClass)))
+            }
 
         case payload =>
           adaptersByType

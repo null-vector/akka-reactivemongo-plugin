@@ -12,7 +12,7 @@ class EnumerationMappingSpec extends AnyFlatSpec {
 
   it should "create a mapping for enumeration" in {
 
-    implicit val rw =
+    implicit val rw: BSONReader[Currency] with BSONWriter[Currency] =
       new BSONReader[Currency] with BSONWriter[Currency] {
         override def readTry(bson: BSONValue): Try[Currency] = {
           bson.asTry[String].map(s => org.nullvector.domain.Money.withName(s))

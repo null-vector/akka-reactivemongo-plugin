@@ -41,7 +41,7 @@ class FromMemoryReadJournalSpec extends AnyFlatSpec with Matchers {
       .adapt[AnEvent]("AnEvent", (event: AnEvent) => Set(event.tag))
   )
   private val readJournal: ReactiveMongoScalaReadJournal =
-    ReactiveMongoJournalProvider(actorSystem).scaladslReadJournal
+    ReactiveMongoJournalProvider(actorSystem).scalaReadJournalTyped
   private val memory: PersistInMemory                    = PersistInMemory(actorSystem)
 
   it should " current by Tags " in {

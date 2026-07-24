@@ -7,7 +7,7 @@ import akka.persistence.journal.Tagged
 import org.nullvector.EventAdapterFactory
 import org.nullvector.typed.ReactiveMongoEventSerializer.Registry
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper, thrownBy}
+import org.scalatest.matchers.should.Matchers.*
 import reactivemongo.api.bson.BSONDocument
 
 import scala.concurrent.Await

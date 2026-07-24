@@ -95,8 +95,8 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
   }
 
   it should "support DurableStoreBehaviour" in {
-    implicit val timeout   = Timeout(1.seconds)
-    implicit val scheduler = system.toTyped.scheduler
+    implicit val timeout: Timeout                 = Timeout(1.seconds)
+    implicit val scheduler: akka.actor.typed.Scheduler = system.toTyped.scheduler
     val chessBoardId       = Random.nextLong().abs.toString
     val chessBoardRef      = testKit.spawn(ChessBoardBehavior.behavior(chessBoardId))
     for {
@@ -155,10 +155,10 @@ class ReactiveMongoCrudTest extends AsyncFlatSpec {
     Thread.sleep(1000)
     val currentUpdatesBefore = atomicInteger.get()
 
-    implicit val timeout   = Timeout(1.seconds)
-    implicit val scheduler = system.toTyped.scheduler
-    val chessBoardId       = Random.nextLong().abs.toString
-    val chessBoardRef      = testKit.spawn(ChessBoardBehavior.behavior(chessBoardId))
+    implicit val timeout: Timeout                      = Timeout(1.seconds)
+    implicit val scheduler: akka.actor.typed.Scheduler = system.toTyped.scheduler
+    val chessBoardId                                   = Random.nextLong().abs.toString
+    val chessBoardRef                                  = testKit.spawn(ChessBoardBehavior.behavior(chessBoardId))
     for {
       _                  <- chessBoardRef.ask[Done](ref => ChessBoardBehavior.UpdatePosition("b3" -> "QW", ref))
       _                   = Thread.sleep(500)
