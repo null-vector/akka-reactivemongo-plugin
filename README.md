@@ -8,11 +8,20 @@ This plugin supports Scala `2.13` and Scala `3.3`, Akka Persistence (`2.9.x` on 
 
 Add in your `build.sbt` the following lines:
 ```scala
-resolvers += "null-vector" at "https://nullvector.jfrog.io/artifactory/releases"
-```
-```scala
+resolvers += "GitHub Package Registry" at
+  "https://maven.pkg.github.com/null-vector/akka-reactivemongo-plugin"
+
+credentials += Credentials(
+  "GitHub Package Registry",
+  "maven.pkg.github.com",
+  "<github-username>",
+  "<personal-access-token>" // needs read:packages
+)
+
 libraryDependencies += "null-vector" %% "akka-reactivemongo-plugin" % "1.6.10"
 ```
+
+A GitHub personal access token with `read:packages` (or `GITHUB_TOKEN` in CI) is required to resolve the dependency.
 
 Examples below use Scala 3 style (`given`). On Scala 2.13 the same API works with `implicit val` (this project also enables `-Xsource:3`).
 

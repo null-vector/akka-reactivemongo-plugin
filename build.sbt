@@ -103,13 +103,17 @@ lazy val core = (project in file("core"))
   .dependsOn(macros, api)
   .settings(
     commonSettings,
+    publishMavenStyle                      := true,
     publishTo                              := Some(
-      "nullvector" at (if (isSnapshot.value)
-                         "https://nullvectormirror.jfrog.io/artifactory/libs-snapshots"
-                       else
-                         "https://nullvectormirror.jfrog.io/artifactory/libs-release")
+      "GitHub Package Registry" at
+        "https://maven.pkg.github.com/null-vector/akka-reactivemongo-plugin"
     ),
-    credentials += Credentials(Path.userHome / ".jfrog" / "credentials"),
+    credentials ++= {
+      val token = sys.env.get("GITHUB_TOKEN")
+      token.toSeq.map { t =>
+        Credentials("GitHub Package Registry", "maven.pkg.github.com", "_", t)
+      }
+    },
     Compile / packageDoc / publishArtifact := false,
     Compile / packageBin / mappings ++= (macros / Compile / packageBin / mappings).value,
     Compile / packageSrc / mappings ++= (macros / Compile / packageSrc / mappings).value,
